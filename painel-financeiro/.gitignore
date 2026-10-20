@@ -1,0 +1,7 @@
+# Dados locais, logs e configuração da máquina (podem conter dados reais)
+dados/
+logs/
+config.json
+__pycache__/
+*.pyc
+.env

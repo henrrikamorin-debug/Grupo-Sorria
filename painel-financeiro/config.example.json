@@ -1,0 +1,24 @@
+{
+  "modo": "demonstracao",
+  "servidor": { "host": "127.0.0.1", "porta": 8750 },
+  "coleta": {
+    "habilitada": true,
+    "intervalo_minutos": 10,
+    "executar_ao_iniciar": true,
+    "tolerancia_desatualizacao_minutos": 25,
+    "tempo_maximo_minutos": 8,
+    "janela_dias": 120,
+    "aceitar_coleta_vazia": false
+  },
+  "totvs": { "conector": "nao_configurado" },
+  "televisao": { "rotacao_tabela_segundos": 20 },
+  "agente_ia": {
+    "habilitado": false,
+    "provedor": "anthropic",
+    "modelo": "claude-opus-5-5",
+    "variavel_chave_api": "ANTHROPIC_API_KEY",
+    "max_tokens": 4000,
+    "limite_chamadas_dia": 20,
+    "max_ocorrencias_contexto": 40
+  }
+}

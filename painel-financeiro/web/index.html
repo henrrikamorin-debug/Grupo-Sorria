@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel Financeiro — Grupo Sorria</title>
+  <link rel="stylesheet" href="/static/css/painel.css">
+  <script type="module" src="/static/js/app.js"></script>
+</head>
+<body>
+  <!-- Visível por padrão: só é ocultada quando o servidor confirma modo real. -->
+  <div class="faixa-demo" id="faixa-demo" role="status">
+    MODO DEMONSTRAÇÃO — DADOS FICTÍCIOS
+    <small>Nenhum dado vem do TOTVS · ocorrências e regras são apenas ilustrativas</small>
+  </div>
+  <div class="faixa-erro oculto" id="faixa-erro" role="alert"></div>
+
+  <main class="painel">
+    <header class="cabecalho">
+      <div class="marca">
+        <span class="grupo">GRUPO SORRIA</span>
+        <h1>Acompanhamento Financeiro</h1>
+        <span class="resumo-tv" id="resumo-tv"></span>
+      </div>
+      <div class="espaco"></div>
+      <button class="integracao" id="integracao" data-nivel="aguardando" type="button"
+              aria-label="Situação da integração — abrir detalhes">
+        <span class="ponto" aria-hidden="true"></span>
+        <span>
+          <span class="titulo" id="integracao-titulo">Carregando situação…</span><br>
+          <span class="sub" id="integracao-sub">—</span>
+        </span>
+      </button>
+      <div class="acoes">
+        <button class="botao so-normal" id="btn-exportar" type="button">Exportar CSV</button>
+        <button class="botao" id="btn-tv" type="button">Modo TV</button>
+        <button class="botao" id="btn-tela-cheia" type="button">Tela cheia</button>
+      </div>
+      <div class="relogio" aria-hidden="true">
+        <div class="hora num" id="relogio-hora">--:--</div>
+        <div class="data" id="relogio-data"></div>
+      </div>
+    </header>
+
+    <section class="cartao filtros" aria-label="Filtros">
+      <div class="campo">
+        <label for="f-periodo">Período</label>
+        <select id="f-periodo">
+          <option value="7d">Últimos 7 dias</option>
+          <option value="30d" selected>Últimos 30 dias</option>
+          <option value="90d">Últimos 90 dias</option>
+          <option value="mes">Mês atual</option>
+          <option value="mes-anterior">Mês anterior</option>
+          <option value="tudo">Todo o período coletado</option>
+          <option value="personalizado">Personalizado…</option>
+        </select>
+      </div>
+      <div class="campo oculto" id="campo-inicio">
+        <label for="f-inicio">De</label>
+        <input type="date" id="f-inicio">
+      </div>
+      <div class="campo oculto" id="campo-fim">
+        <label for="f-fim">Até</label>
+        <input type="date" id="f-fim">
+      </div>
+      <div class="campo">
+        <label for="f-clinica">Clínica</label>
+        <select id="f-clinica"><option value="">Todas</option></select>
+      </div>
+      <div class="campo">
+        <label for="f-categoria">Categoria</label>
+        <select id="f-categoria"><option value="">Todas</option></select>
+      </div>
+      <div class="campo">
+        <label for="f-situacao">Situação</label>
+        <select id="f-situacao"><option value="">Todas</option></select>
+      </div>
+      <button class="botao" id="btn-limpar" type="button">Limpar filtros</button>
+      <span class="resumo" id="resumo-filtros"></span>
+    </section>
+
+    <section class="indicadores" aria-label="Indicadores">
+      <div class="cartao indicador">
+        <div class="rotulo">Registros analisados</div>
+        <div class="valor num" id="k-registros">—</div>
+        <div class="detalhe" id="k-registros-d">lançamentos no período</div>
+      </div>
+      <div class="cartao indicador">
+        <div class="rotulo">Inconsistências</div>
+        <div class="valor num" id="k-ocorrencias">—</div>
+        <div class="detalhe" id="k-ocorrencias-d"></div>
+      </div>
+      <div class="cartao indicador">
+        <div class="rotulo">Valor associado</div>
+        <div class="valor num" id="k-valor">—</div>
+        <div class="detalhe" id="k-valor-d">cada lançamento somado uma vez</div>
+      </div>
+      <div class="cartao indicador">
+        <div class="rotulo">Pendências</div>
+        <div class="valor num" id="k-pendencias">—</div>
+        <div class="detalhe" id="k-pendencias-d"></div>
+      </div>
+    </section>
+
+    <section class="graficos" aria-label="Gráficos">
+      <div class="cartao">
+        <h2>Por clínica <span class="metrica-tv" data-metrica-rotulo></span>
+          <span class="alternador" role="group" aria-label="Métrica dos gráficos">
+            <button type="button" data-metrica="ocorrencias" aria-pressed="true">Ocorrências</button>
+            <button type="button" data-metrica="valor" aria-pressed="false">Valor</button>
+          </span>
+        </h2>
+        <div class="barras" id="g-clinica"></div>
+      </div>
+      <div class="cartao">
+        <h2>Por categoria <span class="metrica-tv" data-metrica-rotulo></span>
+          <span class="alternador" role="group" aria-label="Métrica dos gráficos">
+            <button type="button" data-metrica="ocorrencias" aria-pressed="true">Ocorrências</button>
+            <button type="button" data-metrica="valor" aria-pressed="false">Valor</button>
+          </span>
+        </h2>
+        <div class="barras" id="g-categoria"></div>
+      </div>
+      <div class="cartao grafico-periodo">
+        <h2><span>Por período <span class="metrica-tv" id="g-periodo-gran"></span></span>
+          <span class="alternador" role="group" aria-label="Métrica dos gráficos">
+            <button type="button" data-metrica="ocorrencias" aria-pressed="true">Ocorrências</button>
+            <button type="button" data-metrica="valor" aria-pressed="false">Valor</button>
+          </span>
+        </h2>
+        <div class="area" id="g-periodo"></div>
+      </div>
+    </section>
+
+    <section class="cartao ocorrencias" aria-label="Ocorrências">
+      <h2>Ocorrências <span class="atualizando" id="contagem-tabela"></span></h2>
+      <div class="tabela-area" id="tabela-area">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th><th>Clínica</th><th>Referência</th><th>Regra</th>
+              <th>Descrição</th><th class="valor">Valor</th><th>Situação</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-corpo"></tbody>
+        </table>
+        <div id="tabela-estado"></div>
+      </div>
+      <div class="paginacao">
+        <span id="pagina-info"></span>
+        <span class="botoes">
+          <button class="botao" id="btn-anterior" type="button">Anterior</button>
+          <button class="botao" id="btn-proxima" type="button">Próxima</button>
+        </span>
+      </div>
+    </section>
+
+    <footer class="rodape">
+      <span id="rodape-coleta">Atualizar o painel apenas relê os dados locais — não coleta nada do TOTVS.</span>
+      <span id="rodape-painel" class="num"></span>
+    </footer>
+  </main>
+
+  <div class="fundo-modal oculto" id="fundo-modal"></div>
+  <aside class="gaveta oculto" id="gaveta" role="dialog" aria-modal="true" aria-labelledby="gaveta-titulo">
+    <div class="topo">
+      <div>
+        <div class="sobre" id="gaveta-sobre"></div>
+        <h3 id="gaveta-titulo"></h3>
+      </div>
+      <button class="botao fechar" id="gaveta-fechar" type="button">Fechar</button>
+    </div>
+    <div class="corpo" id="gaveta-corpo"></div>
+  </aside>
+
+  <div class="dica oculto" id="dica" role="tooltip"></div>
+</body>
+</html>
