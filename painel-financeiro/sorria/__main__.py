@@ -6,8 +6,8 @@
     python -m sorria coletar    executa uma coleta agora, sem servidor
     python -m sorria importar-filiais ARQUIVO.xlsx
                                 importa o cadastro de filiais (planilha de controle)
-    python -m sorria definir-senha
-                                define a senha da área restrita (escritório)
+    python -m sorria definir-proprietario
+                                define a conta proprietária (usuário e senha) da área restrita
     python -m sorria relatorio [AAAA-MM]
                                 gera o relatório mensal (padrão: mês anterior)
 """
@@ -81,7 +81,7 @@ def _ler_pid() -> int | None:
 def _preparar(config: dict):
     caminho = cfg.caminho_banco(config)
     db.inicializar(caminho, config["modo"])
-    servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(config["modo"]),
+    servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(config["modo"], config),
                             caminho_filiais=cfg.caminho_filiais())
     return caminho, servico
 
@@ -188,19 +188,23 @@ def importar_filiais(config: dict, arquivo: str | None) -> int:
     return 0
 
 
-def definir_senha(config: dict, _arquivo=None) -> int:
-    from .acesso import definir_senha as gravar
+def definir_proprietario(config: dict, usuario: str | None = None) -> int:
+    from .acesso import definir_proprietario as gravar, proprietario
 
-    senha = getpass.getpass("Nova senha da área restrita: ")
+    atual = proprietario(cfg.caminho_senha())
+    if atual:
+        print(f"Conta proprietária atual: {atual}. Ela será substituída.")
+    usuario = usuario or input("Usuário da conta proprietária: ").strip()
+    senha = getpass.getpass("Senha: ")
     if senha != getpass.getpass("Repita a senha: "):
         print("As senhas não conferem. Nada foi alterado.")
         return 1
     try:
-        gravar(cfg.caminho_senha(), senha)
+        gravar(cfg.caminho_senha(), usuario, senha)
     except ValueError as erro:
         print(erro)
         return 1
-    print("Senha definida. Reinicie o serviço se ele estiver em execução para encerrar sessões abertas.")
+    print("Conta proprietária definida. Sessões abertas de outra conta deixam de valer.")
     return 0
 
 
@@ -214,7 +218,7 @@ def gerar_relatorio(config: dict, mes: str | None) -> int:
     with db.fechando(db.conectar(caminho)) as conexao:
         resultado = relatorio.gerar_e_salvar(conexao, config, mes, carregar_filiais(cfg.caminho_filiais()),
                                              cfg.pasta_relatorios(config),
-                                             ocultar_filiais=config["acesso_restrito"]["filiais"])
+                                             ocultar_filiais=True)
     print(f"Relatório de {mes}: {cfg.pasta_relatorios(config) / f'relatorio-{mes}.html'}")
     print(f"Filiais em destaque: {', '.join(resultado['destaques']) or 'nenhuma'}")
     return 0
@@ -223,8 +227,14 @@ def gerar_relatorio(config: dict, mes: str | None) -> int:
 def main(argv: list[str] | None = None) -> int:
     analisador = argparse.ArgumentParser(prog="python -m sorria", description=__doc__,
                                          formatter_class=argparse.RawDescriptionHelpFormatter)
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] == "agente":
+        from .totvs.cli import main as agente_main
+        configurar_log()
+        return agente_main(argv[1:])
     analisador.add_argument("comando", choices=["iniciar", "parar", "situacao", "coletar", "importar-filiais",
-                                                "definir-senha", "relatorio"])
+                                                "definir-proprietario", "definir-senha", "relatorio"])
     analisador.add_argument("argumento", nargs="?", help="arquivo .xlsx ou mês AAAA-MM, conforme o comando")
     argumentos = analisador.parse_args(argv)
     configurar_log()
@@ -232,8 +242,8 @@ def main(argv: list[str] | None = None) -> int:
     simples = {"iniciar": iniciar, "parar": parar, "situacao": situacao, "coletar": coletar}
     if argumentos.comando in simples:
         return simples[argumentos.comando](config)
-    com_argumento = {"importar-filiais": importar_filiais, "definir-senha": definir_senha,
-                     "relatorio": gerar_relatorio}
+    com_argumento = {"importar-filiais": importar_filiais, "definir-proprietario": definir_proprietario,
+                     "definir-senha": definir_proprietario, "relatorio": gerar_relatorio}
     return com_argumento[argumentos.comando](config, argumentos.argumento)
 
 

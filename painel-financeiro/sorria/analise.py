@@ -79,18 +79,21 @@ class Filtros:
 
 
 def sql_ocultar(ocultar_filiais) -> tuple[str, list]:
-    """Condição que remove as filiais restritas (área com senha)."""
-    codigos = sorted(set(ocultar_filiais or ()))
-    if not codigos:
+    """Condição que remove os registros da área restrita (escritório).
+
+    Usa a marca ``restrito`` gravada em cada lançamento/ocorrência na coleta.
+    Registro sem marca (NULL) é tratado como restrito: na dúvida, não exibe.
+    """
+    if not ocultar_filiais:
         return "", []
-    return f"(filial IS NULL OR filial NOT IN ({', '.join('?' * len(codigos))}))", codigos
+    return "COALESCE(restrito, 1) = 0", []
 
 
 SQL_OCORRENCIAS = """
 SELECT * FROM (
     SELECT o.id, o.referencia, o.regra_codigo, o.regra_nome, o.descricao, o.evidencia,
            o.clinica, o.categoria, o.data, o.valor_centavos, o.coleta_id, o.filial,
-           COALESCE(o.titulo, o.referencia) AS titulo, o.responsavel,
+           COALESCE(o.titulo, o.referencia) AS titulo, o.responsavel, o.restrito,
            COALESCE(s.situacao, 'pendente') AS situacao,
            COALESCE(s.primeira_deteccao, o.detectada_em) AS primeira_deteccao,
            s.atualizada_em AS situacao_atualizada_em

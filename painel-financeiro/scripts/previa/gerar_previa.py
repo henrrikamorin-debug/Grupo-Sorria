@@ -34,14 +34,11 @@ servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(
 servico.executar("inicial")
 with db.fechando(db.conectar(caminho)) as cx:
     # A prévia não tem senha: a área restrita (escritório) fica sempre de fora.
-    restritas = config["acesso_restrito"]["filiais"]
-    normal = montar_painel(cx, Filtros(), ocultar_filiais=restritas)
-    tv = montar_painel(cx, Filtros(), tv=True, ocultar_filiais=restritas)
+    normal = montar_painel(cx, Filtros(), ocultar_filiais=True)
+    tv = montar_painel(cx, Filtros(), tv=True, ocultar_filiais=True)
     situacao = montar_situacao(cx, config, servico)
     lanc = [list(r) for r in cx.execute(
-        f"SELECT clinica, categoria, data, responsavel FROM lancamentos WHERE filial IS NULL OR filial NOT IN "
-        f"({', '.join('?' * len(restritas))})", restritas)] if restritas else [
-        list(r) for r in cx.execute("SELECT clinica, categoria, data, responsavel FROM lancamentos")]
+        "SELECT clinica, categoria, data, responsavel FROM lancamentos WHERE COALESCE(restrito, 1) = 0")]
 situacao["historico"] = situacao["historico"][:1]
 dados = {"normal": normal["ocorrencias"], "tv": tv["ocorrencias"], "opcoes": normal["opcoes"],
          "lancamentos": lanc, "situacao": situacao, "televisao": config["televisao"]}

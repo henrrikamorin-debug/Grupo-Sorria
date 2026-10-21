@@ -45,8 +45,35 @@ PADRAO: dict = {
         "aceitar_coleta_vazia": False,
     },
     "totvs": {
-        # Ainda não definido: depende do produto TOTVS e da forma de acesso.
-        "conector": "nao_configurado",
+        # "se2_consulta_generica": o painel (modo real) lê os títulos de Contas a
+        # Pagar importados pelo agente a partir do Exp. CSV da Consulta Genérica.
+        "conector": "se2_consulta_generica",
+        "endereco_webapp": "",
+    },
+    "agente": {
+        # Pasta onde a exportação (Exp. CSV) deve ser salva. Vazio = dados/totvs/entrada.
+        "pasta_entrada": "",
+        "padrao_arquivo": "*.csv",
+        # Espera pela exportação durante uma execução.
+        "tempo_espera_minutos": 20,
+        "intervalo_verificacao_segundos": 5,
+        # O arquivo só é considerado pronto quando o tamanho fica estável por este tempo.
+        "segundos_tamanho_estavel": 4,
+        "tolerancia_relogio_segundos": 120,
+        # Importação manual: arquivos mais antigos exigem confirmação explícita.
+        "idade_maxima_horas": 12,
+        "max_percentual_linhas_rejeitadas": 5,
+        "tamanho_codigo_filial": 6,
+        # Tentativas para falhas temporárias (arquivo travado, banco ocupado).
+        "tentativas": 3,
+        "espera_entre_tentativas_segundos": 30,
+        "tempo_maximo_execucao_minutos": 40,
+        # Sem horários definidos o agendamento não é criado.
+        "agendamento": {"ativo": False, "horarios": []},
+        # Após este tempo sem importação válida o painel avisa "dados desatualizados".
+        "tolerancia_desatualizacao_horas": 26,
+        # Verificações objetivas de Contas a Pagar (em validação, ver docs/AGENTE_TOTVS.md).
+        "verificacoes_se2": True,
     },
     "categorias": {
         # Prefixo do título no TOTVS -> categoria exibida no painel.
@@ -69,8 +96,13 @@ PADRAO: dict = {
     "acesso_restrito": {
         # Filiais cujos dados só aparecem após digitar a senha (ex.: o escritório,
         # que concentra a folha dos colaboradores e os pagamentos a PJ).
-        # A senha é definida no computador do serviço: python -m sorria definir-senha
+        # Só a conta proprietária libera (python -m sorria definir-proprietario).
         "filiais": ["031801"],
+        # Regras adicionais explícitas (códigos do TOTVS). Vazias até serem informadas.
+        "naturezas": [],
+        "prefixos": [],
+        # Título de filial fora do cadastro: classificação incerta, fica restrito.
+        "restringir_sem_cadastro": True,
         "minutos_sessao": 30,
     },
     "relatorio_mensal": {
@@ -153,3 +185,18 @@ def caminho_senha() -> Path:
 
 def pasta_relatorios(config: dict) -> Path:
     return pasta_dados() / "relatorios" / config["modo"]
+
+
+def caminho_contratos() -> Path:
+    """Cadastro de contratos (opcional) para conferir cobranças."""
+    return pasta_dados() / "contratos" / "contratos.json"
+
+
+def pasta_agente(config: dict) -> Path:
+    """Pasta de trabalho do agente TOTVS: entrada, processados, rejeitados."""
+    return pasta_dados() / "totvs"
+
+
+def pasta_entrada_agente(config: dict) -> Path:
+    configurada = (config.get("agente", {}).get("pasta_entrada") or "").strip()
+    return Path(configurada) if configurada else pasta_agente(config) / "entrada"

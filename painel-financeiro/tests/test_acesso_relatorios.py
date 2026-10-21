@@ -16,7 +16,7 @@ from test_painel import HOJE, Base, ConectorFixo, _lanc
 
 from sorria import config as cfg
 from sorria import db, relatorio
-from sorria.acesso import AcessoNegado, MuitasTentativas, Sessoes, conferir_senha, definir_senha
+from sorria.acesso import AcessoNegado, MuitasTentativas, Sessoes, conferir, definir_proprietario, proprietario
 from sorria.analise import Filtros
 from sorria.cadastros import classificar_categoria, importar_filiais_xlsx
 from sorria.coleta import ServicoColeta, _consolidar
@@ -88,34 +88,50 @@ class TestFiliais(unittest.TestCase):
 
 
 class TestSenha(Base):
-    def test_hash_e_conferencia(self):
+    def test_conta_proprietaria(self):
         caminho = cfg.caminho_senha()
+        self.assertIsNone(proprietario(caminho))
         with self.assertRaises(ValueError):
-            definir_senha(caminho, "curta")
-        definir_senha(caminho, "senha-boa-123")
+            definir_proprietario(caminho, "dono", "curta")
+        with self.assertRaises(ValueError):
+            definir_proprietario(caminho, "x", "senha-boa-123")
+        definir_proprietario(caminho, "Dono.Financeiro", "senha-boa-123")
         self.assertNotIn("senha-boa-123", caminho.read_text())
-        self.assertTrue(conferir_senha(caminho, "senha-boa-123"))
-        self.assertFalse(conferir_senha(caminho, "senha-errada"))
+        self.assertEqual(proprietario(caminho), "dono.financeiro")
+        self.assertTrue(conferir(caminho, "dono.financeiro", "senha-boa-123"))
+        self.assertFalse(conferir(caminho, "outro.usuario", "senha-boa-123"))  # outra conta, mesma senha
+        self.assertFalse(conferir(caminho, "dono.financeiro", "senha-errada"))
+
+    def test_arquivo_antigo_sem_usuario_nao_libera(self):
+        caminho = cfg.caminho_senha()
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        caminho.write_text(json.dumps({"algoritmo": "pbkdf2_sha256", "iteracoes": 1, "sal": "00", "hash": "x"}))
+        self.assertIsNone(proprietario(caminho))
+        with self.assertRaises(AcessoNegado):
+            Sessoes(caminho, 30).desbloquear("qualquer", "qualquer")
 
     def test_sessoes_e_limite_de_tentativas(self):
         sessoes = Sessoes(cfg.caminho_senha(), minutos=30)
         with self.assertRaises(AcessoNegado):
-            sessoes.desbloquear("qualquer")  # sem senha definida: bloqueado
-        definir_senha(cfg.caminho_senha(), "senha-boa-123")
-        token, _ = sessoes.desbloquear("senha-boa-123")
+            sessoes.desbloquear("dono", "qualquer")  # sem conta proprietária: bloqueado
+        definir_proprietario(cfg.caminho_senha(), "dono", "senha-boa-123")
+        token, _ = sessoes.desbloquear("dono", "senha-boa-123")
         self.assertTrue(sessoes.valida(token))
+        definir_proprietario(cfg.caminho_senha(), "nova.dona", "outra-senha-456")
+        self.assertIsNone(sessoes.valida(token))  # sessão da conta anterior deixa de valer
+        token, _ = sessoes.desbloquear("nova.dona", "outra-senha-456")
         sessoes.encerrar(token)
         self.assertIsNone(sessoes.valida(token))
         for _ in range(5):  # MAX_TENTATIVAS erradas
             with self.assertRaises(AcessoNegado):
-                sessoes.desbloquear("errada!!")
+                sessoes.desbloquear("nova.dona", "errada!!")
         with self.assertRaises(MuitasTentativas):
-            sessoes.desbloquear("senha-boa-123")
+            sessoes.desbloquear("nova.dona", "outra-senha-456")
 
     def test_sessao_expira(self):
-        definir_senha(cfg.caminho_senha(), "senha-boa-123")
+        definir_proprietario(cfg.caminho_senha(), "dono", "senha-boa-123")
         sessoes = Sessoes(cfg.caminho_senha(), minutos=0.0001)
-        token, _ = sessoes.desbloquear("senha-boa-123")
+        token, _ = sessoes.desbloquear("dono", "senha-boa-123")
         import time
         time.sleep(0.05)
         self.assertIsNone(sessoes.valida(token))
@@ -163,13 +179,15 @@ class TestServidorRestrito(Base):
         self.assertEqual(filiais, {"016501"})
         self.assertEqual(dados["indicadores"]["registros_analisados"], 1)
         self.assertFalse(dados["acesso"]["senha_definida"])
-        status, _, _ = self.req("/api/acesso/desbloquear", {"senha": "qualquer-coisa"})
+        status, _, _ = self.req("/api/acesso/desbloquear", {"usuario": "dono", "senha": "qualquer-coisa"})
         self.assertEqual(status, 401)
 
-        definir_senha(cfg.caminho_senha(), "senha-boa-123")
-        status, _, _ = self.req("/api/acesso/desbloquear", {"senha": "errada-123"})
+        definir_proprietario(cfg.caminho_senha(), "dono", "senha-boa-123")
+        status, _, _ = self.req("/api/acesso/desbloquear", {"usuario": "dono", "senha": "errada-123"})
         self.assertEqual(status, 401)
-        status, cabecalhos, _ = self.req("/api/acesso/desbloquear", {"senha": "senha-boa-123"})
+        status, _, _ = self.req("/api/acesso/desbloquear", {"usuario": "outra.pessoa", "senha": "senha-boa-123"})
+        self.assertEqual(status, 401)
+        status, cabecalhos, _ = self.req("/api/acesso/desbloquear", {"usuario": "dono", "senha": "senha-boa-123"})
         self.assertEqual(status, 200)
         cookie_bruto = cabecalhos["Set-Cookie"]
         self.assertIn("HttpOnly", cookie_bruto)
@@ -193,7 +211,7 @@ class TestServidorRestrito(Base):
         with db.fechando(db.conectar(self.caminho)) as conexao:
             id_ = conexao.execute("SELECT id FROM ocorrencias WHERE filial = ?", (ESCRITORIO,)).fetchone()[0]
         status, _, _ = self.req(f"/api/ocorrencias/{id_}/situacao", {"situacao": "resolvida"})
-        self.assertEqual(status, 401)
+        self.assertEqual(status, 404)  # sem autorização, nem confirma que a ocorrência existe
 
     def test_relatorio_pela_api(self):
         status, _, corpo = self.req("/api/relatorios", {"mes": HOJE.strftime("%Y-%m")})

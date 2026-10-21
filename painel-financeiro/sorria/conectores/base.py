@@ -28,6 +28,7 @@ class Lancamento:
     titulo: str | None = None       # número do título no TOTVS, exibido como referência
     prefixo: str | None = None      # prefixo do título; define a categoria
     responsavel: str | None = None  # quem cuida da filial (resolvido pelo cadastro)
+    restrito: bool | None = None    # área restrita (escritório); None = decidido na consolidação
     extras: dict = field(default_factory=dict)  # demais campos da origem
 
 

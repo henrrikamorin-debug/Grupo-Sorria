@@ -12,9 +12,15 @@ from .demonstracao import REGRAS_DEMONSTRACAO
 log = logging.getLogger(__name__)
 
 
-def regras_do_modo(modo: str) -> list[Regra]:
+def regras_do_modo(modo: str, config: dict | None = None) -> list[Regra]:
     # O modo real nunca usa regras ilustrativas.
-    return list(REGRAS_DEMONSTRACAO) if modo == "demonstracao" else list(REGRAS_APROVADAS)
+    if modo == "demonstracao":
+        return list(REGRAS_DEMONSTRACAO)
+    regras = list(REGRAS_APROVADAS)
+    if (config or {}).get("agente", {}).get("verificacoes_se2", True):
+        from .contas_pagar import REGRAS_SE2
+        regras += REGRAS_SE2
+    return regras
 
 
 def analisar(lancamentos: list[Lancamento], referencias: dict, regras: list[Regra]) -> list[dict]:
@@ -51,5 +57,6 @@ def analisar(lancamentos: list[Lancamento], referencias: dict, regras: list[Regr
                 "filial": lanc.filial,
                 "titulo": lanc.titulo or lanc.referencia,
                 "responsavel": lanc.responsavel,
+                "restrito": bool(lanc.restrito) if lanc.restrito is not None else True,
             }
     return list(ocorrencias.values())

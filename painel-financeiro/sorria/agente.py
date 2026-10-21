@@ -74,7 +74,7 @@ class AgenteFinanceiro:
         """Dados mínimos para o agente: agregados e ocorrências mascaradas, sem evidências."""
         # O agente nunca recebe a área restrita (escritório: folha e PJ).
         painel = montar_painel(conexao, filtros, tv=True,
-                               ocultar_filiais=self.config["acesso_restrito"]["filiais"])
+                               ocultar_filiais=True)
         limite = int(self.cfg["max_ocorrencias_contexto"])
         return {
             "modo": self.config["modo"],

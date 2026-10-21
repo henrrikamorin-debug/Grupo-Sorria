@@ -14,7 +14,28 @@
     "aceitar_coleta_vazia": false
   },
   "totvs": {
-    "conector": "nao_configurado"
+    "conector": "se2_consulta_generica",
+    "endereco_webapp": ""
+  },
+  "agente": {
+    "pasta_entrada": "",
+    "padrao_arquivo": "*.csv",
+    "tempo_espera_minutos": 20,
+    "intervalo_verificacao_segundos": 5,
+    "segundos_tamanho_estavel": 4,
+    "tolerancia_relogio_segundos": 120,
+    "idade_maxima_horas": 12,
+    "max_percentual_linhas_rejeitadas": 5,
+    "tamanho_codigo_filial": 6,
+    "tentativas": 3,
+    "espera_entre_tentativas_segundos": 30,
+    "tempo_maximo_execucao_minutos": 40,
+    "agendamento": {
+      "ativo": false,
+      "horarios": []
+    },
+    "tolerancia_desatualizacao_horas": 26,
+    "verificacoes_se2": true
   },
   "categorias": {
     "por_prefixo": {},
@@ -29,6 +50,9 @@
     "filiais": [
       "031801"
     ],
+    "naturezas": [],
+    "prefixos": [],
+    "restringir_sem_cadastro": true,
     "minutos_sessao": 30
   },
   "relatorio_mensal": {

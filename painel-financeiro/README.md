@@ -24,7 +24,7 @@ financeiro.
 | Situação das coletas | `py -3 -m sorria situacao` | `python3 -m sorria situacao` |
 | Coleta avulsa (sem servidor) | `py -3 -m sorria coletar` | `python3 -m sorria coletar` |
 | Importar a planilha de filiais | `py -3 -m sorria importar-filiais CONTROLE_FILIAL_TOTVS.xlsx` | `python3 -m sorria importar-filiais CONTROLE_FILIAL_TOTVS.xlsx` |
-| Definir a senha do escritório | `py -3 -m sorria definir-senha` | `python3 -m sorria definir-senha` |
+| Definir a conta proprietária (escritório) | `py -3 -m sorria definir-proprietario` | `python3 -m sorria definir-proprietario` |
 | Gerar relatório mensal | `py -3 -m sorria relatorio 2026-10` | `python3 -m sorria relatorio 2026-10` |
 
 Também é possível rodar em primeiro plano: `python3 -m sorria iniciar`
@@ -34,6 +34,18 @@ Endereços (padrão):
 
 - Painel: <http://127.0.0.1:8750>
 - Modo televisão: <http://127.0.0.1:8750/?tv=1>
+
+## Agente TOTVS (Contas a Pagar)
+
+O modo real é alimentado pelo **agente TOTVS**: a exportação SE2 da Consulta
+Genérica (Vencimento = Mês Atual, Exp. CSV) é validada, importada sem
+duplicar e exibida no painel com período, origem, última coleta válida,
+pendências e conferência de totais. Veja `docs/AGENTE_TOTVS.md`.
+
+- Conferir: `py -3 -m sorria agente verificar`
+- Executar e aguardar a exportação: `scripts\agente.bat`, ou pelo Claude Code: `/coletar-totvs`
+- Importar um arquivo já exportado: `py -3 -m sorria agente importar arquivo.csv`
+- Conta proprietária da área restrita: `py -3 -m sorria definir-proprietario`
 
 ## Uso
 
@@ -92,23 +104,22 @@ planilha.
 Na demonstração, com a planilha importada, os dados fictícios são distribuídos
 pelas filiais e tickets reais da planilha.
 
-### Área restrita do escritório (senha)
+### Área restrita do escritório (conta proprietária)
 
-A filial do escritório (`031801`, Clínicas Inteligentes Regional Goiás)
-concentra a folha dos colaboradores e os pagamentos a PJ. Seus lançamentos
-ficam **fora** de indicadores, gráficos, tabela, filtros, exportação CSV,
-relatórios e do agente de IA até alguém digitar a senha no botão
-"ESCRITÓRIO: bloqueado".
+A filial do escritório (`031801`) concentra a folha dos colaboradores e os
+pagamentos a PJ. Também são restritos os títulos de filial fora do cadastro,
+cuja classificação é incerta. Esses dados ficam **fora** de indicadores,
+gráficos, tabela, filtros, CSV, relatórios, situação e agente de IA. A
+restrição é aplicada no servidor, e só a **conta proprietária** libera.
 
-- A senha é definida **no computador do serviço**: `python -m sorria
-  definir-senha` (mínimo de 8 caracteres). Só um hash é gravado em
-  `dados/acesso.json`; a senha não aparece em nenhum arquivo nem no chat.
-  Enquanto nenhuma senha for definida, a área fica bloqueada para todos.
-- O desbloqueio vale só para aquele navegador, por 30 minutos
-  (`acesso_restrito.minutos_sessao`), e acaba ao clicar em "Bloquear agora" ou
-  ao reiniciar o serviço. Após 5 senhas erradas, novas tentativas esperam 5 min.
-- O **modo TV nunca mostra** a área restrita, mesmo desbloqueada.
-- Outras filiais restritas podem ser incluídas em `acesso_restrito.filiais`.
+- A conta é criada **no computador do serviço**:
+  `py -3 -m sorria definir-proprietario` (usuário e senha, com mínimo de 8
+  caracteres). Só o hash é gravado em `dados/acesso.json`. Sem essa conta,
+  a área fica bloqueada para todos.
+- O desbloqueio exige usuário e senha da conta proprietária, vale só neste
+  computador, por 30 minutos, e nunca no modo TV. Após 5 erros, novas
+  tentativas esperam 5 minutos.
+- Detalhes em `docs/AGENTE_TOTVS.md`.
 
 ### Relatório mensal (filiais com mais dificuldade)
 

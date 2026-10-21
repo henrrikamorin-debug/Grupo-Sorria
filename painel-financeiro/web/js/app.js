@@ -16,7 +16,7 @@ const url = new URL(location.href);
 const estado = {
   tv: url.searchParams.get("tv") === "1",
   filtros: {
-    periodo: url.searchParams.get("periodo") || lerPreferencia("periodo", "30d"),
+    periodo: url.searchParams.get("periodo") || lerPreferencia("periodo", "mes"),
     inicio: url.searchParams.get("inicio") || lerPreferencia("inicio", ""),
     fim: url.searchParams.get("fim") || lerPreferencia("fim", ""),
     responsavel: url.searchParams.get("responsavel") || "",
@@ -44,7 +44,9 @@ function intervaloDoPeriodo() {
     case "7d": return [isoLocal(menos(6)), isoLocal(hoje)];
     case "30d": return [isoLocal(menos(29)), isoLocal(hoje)];
     case "90d": return [isoLocal(menos(89)), isoLocal(hoje)];
-    case "mes": return [isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), isoLocal(hoje)];
+    // Mês inteiro, como o filtro "Vencimento = Mês Atual" do TOTVS (inclui vencimentos futuros do mês).
+    case "mes": return [isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
+                        isoLocal(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0))];
     case "mes-anterior":
       return [isoLocal(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)),
               isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 0))];
@@ -164,7 +166,9 @@ function renderizar() {
   renderizarTabela();
 
   const s = d.situacao;
-  $("rodape-coleta").textContent = s.demonstracao
+  $("rodape-coleta").textContent = s.se2
+    ? "Dados do TOTVS (Contas a Pagar) importados pelo agente. Atualizar o painel não coleta dados do TOTVS."
+    : s.demonstracao
     ? "Demonstração: coleta simulada a cada " + s.intervalo_minutos + " min pelo serviço local. Atualizar o painel não coleta dados."
     : `Coleta automática a cada ${s.intervalo_minutos} min pelo serviço local, somente enquanto o computador e o serviço estiverem ligados. Atualizar o painel não coleta dados do TOTVS.`;
   $("rodape-painel").textContent =
@@ -190,9 +194,10 @@ function renderizarIntegracao(s) {
   integ.dataset.nivel = s.nivel;
   $("integracao-titulo").textContent = s.titulo + (s.coleta_em_andamento ? " · coletando…" : "");
   const sucesso = s.ultima_coleta_sucesso;
-  const rotulo = s.demonstracao ? "Última coleta simulada" : "Última coleta bem-sucedida";
+  const rotulo = s.demonstracao ? "Última coleta simulada" : "Última coleta válida";
+  const periodo = s.importacao ? ` · venc. ${dataCurta(s.importacao.periodo_inicio).slice(3)}` : "";
   $("integracao-sub").textContent = sucesso
-    ? `${rotulo}: ${horaLocal(sucesso.finalizada_em)} (${haQuanto(sucesso.finalizada_em)})` +
+    ? `${rotulo}: ${horaLocal(sucesso.finalizada_em)} (${haQuanto(sucesso.finalizada_em)})${periodo}` +
       (s.ultima_tentativa_falhou ? " · última tentativa falhou" : "")
     : s.detalhe || "nenhuma coleta concluída";
 }
@@ -412,9 +417,54 @@ async function alterarSituacao(id, situacao) {
   }
 }
 
+function abrirIntegracaoSe2(s) {
+  const i = s.importacao;
+  const c = s.conferencia;
+  const etapas = { aguardando_exportacao: "aguardando a exportação", importando: "importando", atualizando_painel: "atualizando o painel",
+    concluida: "concluída", iniciando: "iniciando", trava: "outra execução em andamento" };
+  const situacoes = { sucesso: "Sucesso", falha: "Falha", sem_arquivo: "Sem exportação nova", bloqueada: "Bloqueada",
+    interrompida: "Interrompida", em_andamento: "Em andamento" };
+  const linhas = (s.execucoes_agente || []).map((e) => `<tr>
+      <td class="num">${horaLocal(e.iniciada_em)}</td>
+      <td class="${e.situacao === "sucesso" ? "sucesso" : e.situacao === "em_andamento" ? "" : "falha"}">${esc(situacoes[e.situacao] || e.situacao)}</td>
+      <td>${esc(e.origem)}</td><td>${esc(etapas[e.etapa] || e.etapa)}</td>
+      <td>${esc(e.mensagem || "")}</td></tr>`).join("");
+  const agenda = s.agendamento || {};
+  abrirGaveta("Situação da integração", s.titulo, `
+    <dl>
+      <dt>Origem dos dados</dt><dd>${esc(s.origem)}</dd>
+      <dt>Período consultado</dt><dd class="num">${i ? `Vencimento de ${dataCurta(i.periodo_inicio)} a ${dataCurta(i.periodo_fim)}` : "—"}</dd>
+      <dt>Última coleta válida</dt><dd class="num">${i ? `${horaLocal(i.finalizada_em)} · ${haQuanto(i.finalizada_em)}` : "nenhuma"}</dd>
+      <dt>Arquivo</dt><dd>${i ? esc(i.arquivo_nome) : "—"}</dd>
+      <dt>Situação da atualização</dt><dd>${esc(s.detalhe || s.titulo)}${s.coleta_em_andamento ? ` · em andamento (${esc(etapas[s.etapa_em_andamento] || s.etapa_em_andamento)})` : ""}</dd>
+      <dt>Dados desatualizados?</dt><dd>${s.desatualizado ? `Sim (sem importação válida há mais de ${Math.round(s.tolerancia_minutos / 60)} h)` : "Não"}</dd>
+      <dt>Agendamento</dt><dd>${agenda.ativo && (agenda.horarios || []).length ? `ativo: ${agenda.horarios.map(esc).join(", ")}` : "não ativado (horários ainda não definidos)"}</dd>
+    </dl>
+    ${i ? `<div><h4>Pendências e divergências</h4><dl>
+      <dt>Títulos no arquivo</dt><dd class="num">${numero(i.titulos)}${i.linhas_lidas != null ? ` de ${numero(i.linhas_lidas)} linha(s) lida(s)` : ""}</dd>
+      <dt>Linhas rejeitadas</dt><dd class="num">${numero(i.rejeitadas)}</dd>
+      <dt>Colunas não exportadas</dt><dd>${i.colunas_ausentes.length ? esc(i.colunas_ausentes.join(", ")) : "nenhuma"}</dd>
+      ${i.restritos != null ? `<dt>Restritos (área do escritório)</dt><dd class="num">${numero(i.restritos)} · filiais sem cadastro: ${numero(i.filiais_sem_cadastro)}</dd>` : ""}
+      <dt>Avisos</dt><dd>${i.avisos.length ? i.avisos.map(esc).join("<br>") : "nenhum"}</dd>
+    </dl></div>` : ""}
+    ${c ? `<div><h4>Conferência com o arquivo de origem</h4><dl>
+      <dt>Arquivo</dt><dd class="num">${numero(c.arquivo_titulos)} títulos · ${reais(c.arquivo_valor_centavos)}</dd>
+      <dt>Painel (mesmo período)</dt><dd class="num">${numero(c.painel_titulos)} títulos · ${reais(c.painel_valor_centavos)}</dd>
+      <dt>Resultado</dt><dd>${c.confere ? "Confere" : `Diferença: ${numero(c.fora_da_ultima_exportacao)} título(s) do período não vieram na última exportação (mantidos; podem ter sido baixados, excluídos ou estar fora do filtro)`}</dd>
+    </dl></div>` : ""}
+    <div class="nota">
+      <p>A coleta é feita pelo agente TOTVS no computador do financeiro: ele aguarda a exportação "Exp. CSV" da Consulta Genérica (SE2, Vencimento = Mês Atual), valida e importa. Atualizar esta tela apenas relê os dados locais.</p>
+      <p>Se uma coleta falhar, o painel continua com a última importação válida e esta tela mostra a falha.</p>
+    </div>
+    <div><h4>Últimas execuções do agente</h4>
+      <table class="historico"><thead><tr><th>Início</th><th>Resultado</th><th>Origem</th><th>Etapa</th><th>Mensagem</th></tr></thead>
+      <tbody>${linhas || `<tr><td colspan="5">Nenhuma execução registrada.</td></tr>`}</tbody></table></div>`);
+}
+
 function abrirIntegracao() {
   const s = estado.dados?.situacao;
   if (!s) return;
+  if (s.se2) return abrirIntegracaoSe2(s);
   const linhas = s.historico.map((c) => `<tr>
       <td class="num">${horaLocal(c.iniciada_em)}</td>
       <td class="${esc(c.situacao)}">${esc({ sucesso: "Sucesso", falha: "Falha", em_andamento: "Em andamento" }[c.situacao] || c.situacao)}${c.simulada ? " (simulada)" : ""}</td>
@@ -487,20 +537,22 @@ function abrirAcesso() {
   }
   abrirGaveta("Área restrita", `${nomes}: bloqueado`, `
     <p class="nota">Os lançamentos de <b>${esc(nomes)}</b> concentram a folha dos colaboradores e os pagamentos a PJ.
-    Eles ficam fora dos indicadores, gráficos, tabela, exportação e relatórios até a senha ser digitada.</p>
+    Eles ficam fora dos indicadores, gráficos, tabela, exportação e relatórios. Só a conta proprietária pode liberar.</p>
     ${a.senha_definida ? `
     <form class="formulario" id="form-acesso">
+      <div class="campo"><label for="usuario-acesso">Usuário proprietário</label>
+        <input type="text" id="usuario-acesso" autocomplete="username" required></div>
       <div class="campo"><label for="senha-acesso">Senha</label>
         <input type="password" id="senha-acesso" autocomplete="current-password" required></div>
       <button class="botao primario" type="submit">Liberar</button>
-    </form>` : `<div class="aviso-regra">Nenhuma senha foi definida ainda. No computador do serviço, execute
-      <b>python -m sorria definir-senha</b> (Windows: <b>py -3 -m sorria definir-senha</b>).</div>`}
+    </form>` : `<div class="aviso-regra">A conta proprietária ainda não foi definida, então ninguém acessa a área restrita.
+      No computador do serviço, execute <b>py -3 -m sorria definir-proprietario</b>.</div>`}
     <div class="atualizando" id="acesso-msg"></div>`);
   $("form-acesso")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const campo = $("senha-acesso");
     try {
-      await postar("/api/acesso/desbloquear", { senha: campo.value });
+      await postar("/api/acesso/desbloquear", { usuario: $("usuario-acesso").value, senha: campo.value });
       campo.value = "";
       fecharGaveta();
       carregar({ silencioso: true });
@@ -509,7 +561,7 @@ function abrirAcesso() {
       $("acesso-msg").textContent = erro.message;
     }
   });
-  $("senha-acesso")?.focus();
+  $("usuario-acesso")?.focus();
 }
 
 // ------------------------------------------------------------------ relatórios
@@ -629,7 +681,7 @@ function ligarEventos() {
   $("f-categoria").addEventListener("change", (e) => alterarFiltro("categoria", e.target.value));
   $("f-situacao").addEventListener("change", (e) => alterarFiltro("situacao", e.target.value));
   $("btn-limpar").addEventListener("click", () => {
-    estado.filtros = { periodo: "30d", inicio: "", fim: "", responsavel: "", clinica: "", categoria: "", situacao: "" };
+    estado.filtros = { periodo: "mes", inicio: "", fim: "", responsavel: "", clinica: "", categoria: "", situacao: "" };
     aplicarFiltros();
   });
   document.querySelectorAll("[data-agrupar]").forEach((b) => b.addEventListener("click", () => {

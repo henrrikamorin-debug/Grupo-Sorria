@@ -57,7 +57,7 @@ class Aplicacao:
     def gerar_relatorio(self, mes: str) -> dict:
         with self._trava_relatorio, self.conexao() as conexao:
             return relatorio.gerar_e_salvar(conexao, self.config, mes, carregar_filiais(caminho_filiais()),
-                                            self.pasta_relatorios, ocultar_filiais=self.filiais_restritas)
+                                            self.pasta_relatorios, ocultar_filiais=True)
 
     def gerar_relatorio_pendente(self) -> None:
         """Chamado após cada coleta: gera o relatório do mês anterior se ainda não existe."""
@@ -138,11 +138,9 @@ class ManipuladorPainel(BaseHTTPRequestHandler):
     def _sessao_expira(self) -> float | None:
         return self.app.sessoes.valida(self._token())
 
-    def _ocultar(self, tv: bool) -> tuple:
-        """Filiais restritas ficam ocultas no modo TV e sem sessão desbloqueada."""
-        if tv or not self._sessao_expira():
-            return self.app.filiais_restritas
-        return ()
+    def _ocultar(self, tv: bool) -> bool:
+        """A área restrita fica oculta no modo TV, para outras máquinas e sem sessão do proprietário."""
+        return bool(tv or not self._local() or not self._sessao_expira())
 
     def _estado_acesso(self, conexao) -> dict:
         restritas = self.app.filiais_restritas
@@ -223,7 +221,8 @@ class ManipuladorPainel(BaseHTTPRequestHandler):
 
     def _situacao(self):
         with self.app.conexao() as conexao:
-            self._json(montar_situacao(conexao, self.app.config, self.app.servico))
+            self._json(montar_situacao(conexao, self.app.config, self.app.servico,
+                                       autorizado=not self._ocultar(self._tv(self._parametros()))))
 
     def _painel(self):
         parametros = self._parametros()
@@ -231,7 +230,8 @@ class ManipuladorPainel(BaseHTTPRequestHandler):
         tv = self._tv(parametros)
         with self.app.conexao() as conexao:
             dados = montar_painel(conexao, filtros, tv=tv, ocultar_filiais=self._ocultar(tv))
-            dados["situacao"] = montar_situacao(conexao, self.app.config, self.app.servico)
+            dados["situacao"] = montar_situacao(conexao, self.app.config, self.app.servico,
+                                                autorizado=not self._ocultar(tv))
             dados["acesso"] = self._estado_acesso(conexao)
         dados["modo"] = self.app.config["modo"]
         dados["tv"] = tv
@@ -323,9 +323,9 @@ class ManipuladorPainel(BaseHTTPRequestHandler):
         self._json(self.app.servico.executar(origem, simular_falha=simular_falha))
 
     def _desbloquear(self, corpo: dict):
-        token, expira = self.app.sessoes.desbloquear(str(corpo.get("senha") or ""))
+        token, expira = self.app.sessoes.desbloquear(str(corpo.get("usuario") or ""), str(corpo.get("senha") or ""))
         minutos = int(round((expira - datetime.now().timestamp()) / 60))
-        log.info("Área restrita desbloqueada por %d min.", minutos)
+        log.info("Área restrita desbloqueada pela conta proprietária por %d min.", minutos)
         cookie = f"{COOKIE_SESSAO}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={minutos * 60}"
         self._json({"ok": True, "desbloqueado": True,
                     "expira_em": datetime.fromtimestamp(expira, timezone.utc).isoformat(timespec="seconds")},
@@ -341,11 +341,11 @@ class ManipuladorPainel(BaseHTTPRequestHandler):
         if nova not in db.SITUACOES:
             raise ValueError("situação inválida")
         with self.app.conexao() as conexao:
-            existe = conexao.execute("SELECT filial FROM ocorrencias WHERE id = ?", (id_ocorrencia,)).fetchone()
-            if not existe:
+            existe = conexao.execute("SELECT COALESCE(restrito, 1) AS restrito FROM ocorrencias WHERE id = ?",
+                                     (id_ocorrencia,)).fetchone()
+            # Ocorrência restrita sem autorização responde como inexistente (não confirma que existe).
+            if not existe or (existe["restrito"] and self._ocultar(tv=False)):
                 return self._erro(HTTPStatus.NOT_FOUND, "ocorrência não encontrada")
-            if existe["filial"] in self._ocultar(tv=False):
-                return self._erro(HTTPStatus.UNAUTHORIZED, "área restrita: desbloqueie com a senha")
             agora = db.agora_iso()
             conexao.execute(
                 "INSERT INTO situacao_ocorrencias (id, situacao, primeira_deteccao, atualizada_em) "

@@ -18,6 +18,11 @@ def criar_conector(config: dict) -> Conector:
         from ..config import caminho_filiais
         return ConectorDemonstracao(filiais=carregar_filiais(caminho_filiais()))
     nome = config["totvs"].get("conector", "nao_configurado")
+    if nome == "se2_consulta_generica":
+        from ..config import caminho_banco, caminho_contratos
+        from ..totvs.contratos import carregar
+        from .totvs_se2 import ConectorTotvsSE2
+        return ConectorTotvsSE2(caminho_banco(config), carregar(caminho_contratos()))
     if nome not in CONECTORES_REAIS:
         raise ValueError(f"conector TOTVS desconhecido: {nome!r}")
     return CONECTORES_REAIS[nome]()

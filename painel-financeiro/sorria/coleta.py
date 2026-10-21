@@ -179,19 +179,21 @@ class ServicoColeta:
             conexao.executemany(
                 "INSERT INTO lancamentos (referencia, clinica, categoria, data, valor_centavos, descricao, "
                 "favorecido, pessoa_fisica, documento, dados_bancarios, filial, titulo, prefixo, responsavel, "
-                "extras, coleta_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "restrito, extras, coleta_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(l.referencia, l.clinica, l.categoria, l.data, l.valor_centavos, l.descricao,
                   l.favorecido, int(l.pessoa_fisica), l.documento, l.dados_bancarios,
-                  l.filial, l.titulo, l.prefixo, l.responsavel, db.json_dump(l.extras), coleta_id)
+                  l.filial, l.titulo, l.prefixo, l.responsavel, int(bool(l.restrito)),
+                  db.json_dump(l.extras), coleta_id)
                  for l in lancamentos],
             )
             conexao.executemany(
                 "INSERT INTO ocorrencias (id, referencia, regra_codigo, regra_nome, descricao, evidencia, "
-                "clinica, categoria, data, valor_centavos, filial, titulo, responsavel, detectada_em, coleta_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "clinica, categoria, data, valor_centavos, filial, titulo, responsavel, restrito, detectada_em, "
+                "coleta_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(o["id"], o["referencia"], o["regra_codigo"], o["regra_nome"], o["descricao"],
                   db.json_dump(o["evidencia"]), o["clinica"], o["categoria"], o["data"],
-                  o["valor_centavos"], o["filial"], o["titulo"], o["responsavel"], agora, coleta_id)
+                  o["valor_centavos"], o["filial"], o["titulo"], o["responsavel"], int(bool(o["restrito"])),
+                  agora, coleta_id)
                  for o in ocorrencias],
             )
             conexao.executemany(
@@ -202,8 +204,9 @@ class ServicoColeta:
             )
             conexao.execute(
                 "UPDATE coletas SET situacao = 'sucesso', finalizada_em = ?, registros = ?, "
-                "ocorrencias = ?, mensagem = ? WHERE id = ?",
-                (db.agora_iso(), len(lancamentos), len(ocorrencias), resultado.observacao or None, coleta_id),
+                "ocorrencias = ?, registros_restritos = ?, ocorrencias_restritas = ?, mensagem = ? WHERE id = ?",
+                (db.agora_iso(), len(lancamentos), len(ocorrencias), sum(1 for l in lancamentos if l.restrito),
+                 sum(1 for o in ocorrencias if o["restrito"]), resultado.observacao or None, coleta_id),
             )
             conexao.execute(
                 "DELETE FROM coletas WHERE id <= (SELECT MAX(id) FROM coletas) - ?", (HISTORICO_MAXIMO,))
@@ -226,6 +229,7 @@ def _consolidar(resultado: ResultadoColeta, config: dict | None = None,
     mapa = {**resultado.referencias.get("categorias_por_prefixo", {}),
             **config_categorias.get("por_prefixo", {})}
     sem_prefixo = config_categorias.get("sem_prefixo", "Diversos")
+    restritas = {str(f) for f in (config or {}).get("acesso_restrito", {}).get("filiais", [])}
     filiais = {**resultado.referencias.get("filiais", {}), **(filiais or {})}
     unicos: dict[str, Lancamento] = {}
     for l in resultado.lancamentos:
@@ -235,6 +239,8 @@ def _consolidar(resultado: ResultadoColeta, config: dict | None = None,
             l.categoria = classificar_categoria(l.prefixo, mapa, sem_prefixo)
         if not l.responsavel:
             l.responsavel = responsavel_da_filial(l.filial, filiais, config or {})
+        if l.restrito is None:
+            l.restrito = bool(l.filial and l.filial in restritas)
         if not l.referencia or not l.clinica or not l.categoria:
             raise ValueError(f"Lançamento incompleto recebido da origem: {l.referencia!r}")
         date.fromisoformat(l.data)  # levanta ValueError se a data for inválida

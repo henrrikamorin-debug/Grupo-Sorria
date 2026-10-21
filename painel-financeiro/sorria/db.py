@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS lancamentos (
     titulo TEXT,
     prefixo TEXT,
     responsavel TEXT,
+    restrito INTEGER,
     extras TEXT NOT NULL DEFAULT '{}',
     coleta_id INTEGER NOT NULL
 );
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
     filial TEXT,
     titulo TEXT,
     responsavel TEXT,
+    restrito INTEGER,
     detectada_em TEXT NOT NULL,
     coleta_id INTEGER NOT NULL,
     UNIQUE (referencia, regra_codigo)
@@ -100,6 +102,95 @@ CREATE TABLE IF NOT EXISTS uso_ia (
     hash_entrada TEXT,
     observacao TEXT
 );
+-- Agente TOTVS: títulos de Contas a Pagar (SE2) acumulados entre importações.
+-- Nunca são apagados por ausência numa exportação; reimportar atualiza pela chave.
+CREATE TABLE IF NOT EXISTS titulos_pagar (
+    chave TEXT PRIMARY KEY,
+    filial TEXT NOT NULL,
+    prefixo TEXT NOT NULL DEFAULT '',
+    numero TEXT NOT NULL,
+    parcela TEXT NOT NULL DEFAULT '',
+    tipo TEXT NOT NULL DEFAULT '',
+    natureza TEXT NOT NULL DEFAULT '',
+    fornecedor TEXT NOT NULL,
+    loja TEXT NOT NULL DEFAULT '',
+    nome_fornecedor TEXT NOT NULL DEFAULT '',
+    emissao TEXT,
+    vencimento TEXT NOT NULL,
+    vencimento_real TEXT,
+    valor_centavos INTEGER NOT NULL,
+    saldo_centavos INTEGER,
+    baixa TEXT,
+    historico TEXT NOT NULL DEFAULT '',
+    situacao_titulo TEXT NOT NULL,
+    restrito INTEGER NOT NULL,
+    motivo_restricao TEXT,
+    filial_cadastrada INTEGER NOT NULL,
+    campos_vazios TEXT NOT NULL DEFAULT '[]',
+    primeira_importacao INTEGER NOT NULL,
+    ultima_importacao INTEGER NOT NULL,
+    atualizado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_titulos_vencimento ON titulos_pagar (vencimento);
+CREATE TABLE IF NOT EXISTS importacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    execucao_id INTEGER,
+    iniciada_em TEXT NOT NULL,
+    finalizada_em TEXT,
+    situacao TEXT NOT NULL CHECK (situacao IN ('importada', 'rejeitada', 'ignorada')),
+    origem TEXT NOT NULL,
+    arquivo_nome TEXT NOT NULL,
+    arquivo_hash TEXT NOT NULL,
+    arquivo_tamanho INTEGER,
+    arquivo_modificado_em TEXT,
+    periodo_inicio TEXT,
+    periodo_fim TEXT,
+    campo_periodo TEXT,
+    colunas_chave TEXT,
+    colunas_ausentes TEXT,
+    linhas_lidas INTEGER,
+    titulos_validos INTEGER,
+    novos INTEGER,
+    atualizados INTEGER,
+    rejeitadas INTEGER,
+    publicos INTEGER,
+    restritos INTEGER,
+    valor_publico_centavos INTEGER,
+    valor_restrito_centavos INTEGER,
+    filiais_arquivo INTEGER,
+    filiais_sem_cadastro INTEGER,
+    avisos TEXT,
+    mensagem TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_importacoes_hash ON importacoes (arquivo_hash);
+CREATE TABLE IF NOT EXISTS importacao_rejeicoes (
+    importacao_id INTEGER NOT NULL,
+    linha INTEGER NOT NULL,
+    motivo TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS execucoes_agente (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    iniciada_em TEXT NOT NULL,
+    finalizada_em TEXT,
+    situacao TEXT NOT NULL CHECK (situacao IN
+        ('em_andamento', 'sucesso', 'falha', 'bloqueada', 'interrompida', 'sem_arquivo')),
+    origem TEXT NOT NULL,
+    etapa TEXT NOT NULL,
+    tentativas INTEGER NOT NULL DEFAULT 0,
+    periodo_inicio TEXT,
+    periodo_fim TEXT,
+    arquivo_caminho TEXT,
+    arquivo_hash TEXT,
+    importacao_id INTEGER,
+    coleta_id INTEGER,
+    mensagem TEXT
+);
+CREATE TABLE IF NOT EXISTS trava_agente (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    dono TEXT,
+    expira_em TEXT
+);
+INSERT OR IGNORE INTO trava_agente (id, dono, expira_em) VALUES (1, NULL, NULL);
 CREATE TABLE IF NOT EXISTS cache_ia (
     hash TEXT PRIMARY KEY,
     modelo TEXT NOT NULL,
@@ -157,6 +248,8 @@ MIGRACOES = [
     ("lancamentos", "filial", "TEXT"), ("lancamentos", "titulo", "TEXT"), ("lancamentos", "prefixo", "TEXT"),
     ("ocorrencias", "filial", "TEXT"), ("ocorrencias", "titulo", "TEXT"),
     ("lancamentos", "responsavel", "TEXT"), ("ocorrencias", "responsavel", "TEXT"),
+    ("lancamentos", "restrito", "INTEGER"), ("ocorrencias", "restrito", "INTEGER"),
+    ("coletas", "registros_restritos", "INTEGER"), ("coletas", "ocorrencias_restritas", "INTEGER"),
 ]
 
 
