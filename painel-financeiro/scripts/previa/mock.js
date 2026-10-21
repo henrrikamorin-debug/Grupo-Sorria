@@ -77,6 +77,7 @@ function painelPrevia(p) {
       valor_associado_centavos: soma, lancamentos_sem_valor: new Set(lista.filter((o) => o.valor_centavos == null).map((o) => o.referencia)).size,
       pendencias: cont.pendente + cont.em_analise, por_situacao: cont },
     graficos: { por_clinica: agrupar(lista, (o) => o.clinica), por_categoria: agrupar(lista, (o) => o.categoria),
+      por_responsavel: agrupar(lista, (o) => o.responsavel || "Sem responsável definido"),
       por_periodo: seriePeriodo(lista, f.inicio || per.inicio, f.fim || per.fim) },
     ocorrencias: lista,
   };

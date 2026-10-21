@@ -66,7 +66,7 @@
         <input type="date" id="f-fim">
       </div>
       <div class="campo">
-        <label for="f-responsavel">Responsável</label>
+        <label for="f-responsavel">Ticket</label>
         <select id="f-responsavel"><option value="">Todos</option></select>
       </div>
       <div class="campo">
@@ -111,10 +111,10 @@
 
     <section class="graficos" aria-label="Gráficos">
       <div class="cartao">
-        <h2>Por clínica <span class="metrica-tv" data-metrica-rotulo></span>
-          <span class="alternador" role="group" aria-label="Métrica dos gráficos">
-            <button type="button" data-metrica="ocorrencias" aria-pressed="true">Ocorrências</button>
-            <button type="button" data-metrica="valor" aria-pressed="false">Valor</button>
+        <h2><span><span id="g-clinica-titulo">Por clínica</span> <span class="metrica-tv" data-metrica-rotulo></span></span>
+          <span class="alternador" role="group" aria-label="Agrupar por">
+            <button type="button" data-agrupar="clinica" aria-pressed="true">Clínica</button>
+            <button type="button" data-agrupar="ticket" aria-pressed="false">Ticket</button>
           </span>
         </h2>
         <div class="barras" id="g-clinica"></div>

@@ -72,21 +72,25 @@ Endereços (padrão):
   `categorias.por_prefixo` no `config.json`; um prefixo ainda não cadastrado
   aparece como "Prefixo XXX" até ser incluído.
 
-### Responsável por filial
+### Ticket (responsável por filial)
 
-O filtro **Responsável** fica ao lado de Clínica: ao escolher uma pessoa, o
-painel mostra só as filiais que ela cuida (indicadores, gráficos, tabela e
-exportação), e a lista de clínicas passa a ter apenas essas filiais. O nome
-também aparece abaixo da clínica na tabela, no detalhe da ocorrência, no CSV
-e no relatório mensal.
+O filtro **Ticket** fica ao lado de Clínica. Os tickets vêm da coluna
+**DIVISÃO** da planilha de filiais (TICKET 1 a TICKET 6). Ao escolher um
+ticket, o painel mostra só as filiais dele (indicadores, inconsistências,
+pendências, gráficos, tabela e exportação), e a lista de clínicas passa a ter
+apenas essas filiais. No gráfico da esquerda, o botão **Ticket** mostra o
+total por ticket; clicar em um ticket aplica o filtro.
 
-De onde vem o nome (o primeiro que existir):
-1. `responsaveis.por_filial` no `config.json`: `{"016501": "Nome"}`;
-2. coluna **RESPONSÁVEL** na planilha de filiais (reimporte com
-   `importar-filiais` depois de preencher);
-3. `responsaveis.por_divisao`: `{"TICKET 1": "Nome"}`, pela coluna DIVISÃO.
+O ticket também aparece abaixo da clínica na tabela, no detalhe da ocorrência,
+no CSV e no relatório mensal (com a tabela "Pendências por ticket").
 
-Sem nenhum deles, aparece "Sem responsável definido".
+Para mostrar o nome de quem cuida de cada ticket ("TICKET 1 — Nome"), preencha
+`responsaveis.por_divisao` no `config.json`: `{"TICKET 1": "Nome"}`. Exceções
+por filial vão em `responsaveis.por_filial` ou numa coluna RESPONSÁVEL da
+planilha.
+
+Na demonstração, com a planilha importada, os dados fictícios são distribuídos
+pelas filiais e tickets reais da planilha.
 
 ### Área restrita do escritório (senha)
 

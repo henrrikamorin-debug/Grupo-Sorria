@@ -220,6 +220,7 @@ def montar_painel(conexao, filtros: Filtros, tv: bool = False, ocultar_filiais=(
         },
         "graficos": {
             "por_clinica": _agrupar(ocorrencias, lambda o: o["clinica"]),
+            "por_responsavel": _agrupar(ocorrencias, lambda o: o.get("responsavel") or "Sem responsável definido"),
             "por_categoria": _agrupar(ocorrencias, lambda o: o["categoria"]),
             "por_periodo": por_periodo,
         },

@@ -41,13 +41,22 @@ def classificar_categoria(prefixo: str | None, mapa: dict[str, str], sem_prefixo
 
 # ---------------------------------------------------------------- filiais
 def responsavel_da_filial(codigo: str | None, cadastro: dict, config: dict) -> str:
-    """Quem cuida da filial: config por filial > planilha > config por divisão."""
+    """Quem cuida da filial, pela divisão (TICKET) da planilha de filiais.
+
+    Ordem: config por filial > coluna RESPONSÁVEL da planilha > divisão. A
+    divisão aparece como "TICKET 1"; com nome configurado em
+    ``responsaveis.por_divisao``, como "TICKET 1 — Nome".
+    """
     regras = config.get("responsaveis", {})
     registro = cadastro.get(codigo or "", {})
-    return (regras.get("por_filial", {}).get(codigo or "")
-            or registro.get("responsavel")
-            or regras.get("por_divisao", {}).get(registro.get("divisao", ""))
-            or regras.get("sem_responsavel", "Sem responsável definido"))
+    explicito = regras.get("por_filial", {}).get(codigo or "") or registro.get("responsavel")
+    if explicito:
+        return explicito
+    divisao = registro.get("divisao", "").strip()
+    if divisao:
+        nome = regras.get("por_divisao", {}).get(divisao)
+        return f"{divisao} — {nome}" if nome else divisao
+    return regras.get("sem_responsavel", "Sem responsável definido")
 
 
 def carregar_filiais(caminho: Path) -> dict[str, dict]:

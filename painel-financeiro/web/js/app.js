@@ -25,6 +25,7 @@ const estado = {
     situacao: url.searchParams.get("situacao") || "",
   },
   metrica: lerPreferencia("metrica", "ocorrencias"),
+  agrupar: lerPreferencia("agrupar", "clinica"),
   pagina: 0,
   linhasPorPagina: PAGINA_NORMAL,
   dados: null,
@@ -223,7 +224,7 @@ function renderizarOpcoes(opcoes) {
   const daPessoa = clinicasDoResponsavel(opcoes);
   preencherSelect("f-clinica", daPessoa || opcoes.clinicas, estado.filtros.clinica);
   $("resumo-responsavel").innerHTML = daPessoa
-    ? `<b>${esc(estado.filtros.responsavel)}</b> cuida de ${daPessoa.length} filial(is): ${daPessoa.map(esc).join(", ")}`
+    ? `<b>${esc(estado.filtros.responsavel)}</b>: ${daPessoa.length} filial(is) — ${daPessoa.map(esc).join(", ")}`
     : "";
   preencherSelect("f-categoria", opcoes.categorias, estado.filtros.categoria);
   preencherSelect("f-situacao", opcoes.situacoes.map((s) => s.valor), estado.filtros.situacao,
@@ -244,10 +245,22 @@ function renderizarGraficos() {
   document.querySelectorAll("[data-metrica-rotulo]").forEach((el) =>
     (el.textContent = metrica === "valor" ? "· valor associado" : "· nº de ocorrências"));
   const maximo = estado.tv ? 6 : 8;
-  barras($("g-clinica"), g.por_clinica, {
-    metrica, maximo, selecionado: estado.filtros.clinica,
-    aoClicar: (v) => alterarFiltro("clinica", estado.filtros.clinica === v ? "" : v),
-  });
+  // Agrupado por ticket (só quando nenhum ticket está escolhido) ou por clínica.
+  const porTicket = estado.agrupar === "ticket" && !estado.filtros.responsavel && (g.por_responsavel || []).length;
+  document.querySelectorAll("[data-agrupar]").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.agrupar === (porTicket ? "ticket" : "clinica"))));
+  $("g-clinica-titulo").textContent = porTicket ? "Por ticket" : "Por clínica";
+  if (porTicket) {
+    barras($("g-clinica"), g.por_responsavel, {
+      metrica, maximo, selecionado: "",
+      aoClicar: (v) => { estado.filtros.responsavel = v; estado.filtros.clinica = ""; aplicarFiltros(); },
+    });
+  } else {
+    barras($("g-clinica"), g.por_clinica, {
+      metrica, maximo, selecionado: estado.filtros.clinica,
+      aoClicar: (v) => alterarFiltro("clinica", estado.filtros.clinica === v ? "" : v),
+    });
+  }
   barras($("g-categoria"), g.por_categoria, {
     metrica, maximo, selecionado: estado.filtros.categoria,
     aoClicar: (v) => alterarFiltro("categoria", estado.filtros.categoria === v ? "" : v),
@@ -619,6 +632,16 @@ function ligarEventos() {
     estado.filtros = { periodo: "30d", inicio: "", fim: "", responsavel: "", clinica: "", categoria: "", situacao: "" };
     aplicarFiltros();
   });
+  document.querySelectorAll("[data-agrupar]").forEach((b) => b.addEventListener("click", () => {
+    estado.agrupar = b.dataset.agrupar;
+    gravarPreferencia("agrupar", estado.agrupar);
+    if (estado.agrupar === "ticket" && estado.filtros.responsavel) {
+      estado.filtros.responsavel = "";
+      estado.filtros.clinica = "";
+      return aplicarFiltros();
+    }
+    if (estado.dados?.situacao.ultima_coleta_sucesso) renderizarGraficos();
+  }));
   document.querySelectorAll("[data-metrica]").forEach((b) => b.addEventListener("click", () => {
     estado.metrica = b.dataset.metrica;
     gravarPreferencia("metrica", estado.metrica);

@@ -11,7 +11,12 @@ from pathlib import Path
 raiz = Path(sys.argv[1]); saida = Path(sys.argv[2])
 sys.path.insert(0, str(raiz))
 import os
-os.environ["SORRIA_DADOS"] = tempfile.mkdtemp()
+import shutil
+temporaria = tempfile.mkdtemp()
+# Leva só o cadastro de filiais (nomes e tickets), se tiver sido importado.
+if (raiz / "dados" / "filiais.json").exists():
+    shutil.copy(raiz / "dados" / "filiais.json", Path(temporaria) / "filiais.json")
+os.environ["SORRIA_DADOS"] = temporaria
 from sorria import config as cfg, db
 from sorria.coleta import ServicoColeta
 from sorria.conectores import criar_conector
@@ -24,7 +29,8 @@ config = cfg.carregar()
 config["modo"] = "demonstracao"  # nunca publicar dados reais
 caminho = cfg.caminho_banco(config)
 db.inicializar(caminho, config["modo"])
-servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(config["modo"]))
+servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(config["modo"]),
+                        caminho_filiais=cfg.caminho_filiais())
 servico.executar("inicial")
 with db.fechando(db.conectar(caminho)) as cx:
     # A prévia não tem senha: a área restrita (escritório) fica sempre de fora.

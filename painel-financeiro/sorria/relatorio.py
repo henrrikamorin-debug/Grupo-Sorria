@@ -113,8 +113,19 @@ def calcular(conexao, config: dict, mes: str, filiais: dict, ocultar_filiais=())
     for o in ocorrencias:
         rotulo = f"{o['regra_codigo']} — {o['regra_nome']}"
         regras_gerais[rotulo] = regras_gerais.get(rotulo, 0) + 1
+    por_ticket: dict[str, dict] = {}
+    for linha in linhas:
+        nome = linha["responsavel"] or "Sem responsável definido"
+        t = por_ticket.setdefault(nome, {"nome": nome, "filiais": 0, "registros": 0, "ocorrencias": 0,
+                                         "pendentes": 0, "valor_centavos": 0})
+        t["filiais"] += 1
+        t["registros"] += linha["registros"]
+        t["ocorrencias"] += linha["ocorrencias"]
+        t["pendentes"] += linha["pendentes"]
+        t["valor_centavos"] += linha["valor_centavos"]
     valor, afetados = _soma_unica(ocorrencias)
     return {
+        "por_ticket": sorted(por_ticket.values(), key=lambda t: (-t["pendentes"], -t["ocorrencias"], t["nome"])),
         "mes": mes, "nome_mes": _nome_mes(mes), "inicio": inicio.isoformat(), "fim": fim.isoformat(),
         "demonstracao": config["modo"] == "demonstracao",
         "gerado_em": datetime.now().astimezone().strftime("%d/%m/%Y %H:%M"),
@@ -221,6 +232,11 @@ td small {{ display:block; color:var(--suave); font-size:12px; }}
 <div class="tabela"><table><thead><tr><th class="n">#</th><th>Filial</th><th>Responsável</th><th class="n">Lançamentos</th><th class="n">Ocorrências</th>
 <th class="n">Afetados</th><th class="n">% com problema</th><th class="n">Pendentes</th><th class="n">Valor associado</th><th class="n">Vs. mês anterior</th></tr></thead>
 <tbody>{ranking}</tbody></table></div>
+<h2>Pendências por ticket</h2>
+<div class="tabela"><table><thead><tr><th>Ticket</th><th class="n">Filiais</th><th class="n">Lançamentos</th>
+<th class="n">Ocorrências</th><th class="n">Pendentes</th><th class="n">Valor associado</th></tr></thead><tbody>
+{''.join(f"<tr><td>{e(t['nome'])}</td><td class='n'>{t['filiais']}</td><td class='n'>{t['registros']}</td><td class='n'>{t['ocorrencias']}</td><td class='n forte'>{t['pendentes']}</td><td class='n'>{e(formatar_reais(t['valor_centavos']))}</td></tr>" for t in dados['por_ticket'])}
+</tbody></table></div>
 <h2>Detalhamento das {len(dados['destaques'])} filiais em destaque</h2>
 {''.join(destaques) or '<p>Nenhuma filial com ocorrências no mês.</p>'}
 <h2>Ocorrências por regra</h2><ul>{regras}</ul>

@@ -12,7 +12,11 @@ CONECTORES_REAIS: dict[str, type[Conector]] = {
 
 def criar_conector(config: dict) -> Conector:
     if config["modo"] == "demonstracao":
-        return ConectorDemonstracao()
+        # Com o cadastro de filiais importado, a demonstração usa as filiais
+        # e tickets reais (com valores e ocorrências fictícios).
+        from ..cadastros import carregar_filiais
+        from ..config import caminho_filiais
+        return ConectorDemonstracao(filiais=carregar_filiais(caminho_filiais()))
     nome = config["totvs"].get("conector", "nao_configurado")
     if nome not in CONECTORES_REAIS:
         raise ValueError(f"conector TOTVS desconhecido: {nome!r}")

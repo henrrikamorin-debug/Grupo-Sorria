@@ -30,12 +30,10 @@ FILIAIS = {
     "900401": "Unidade Leste", "900501": "Unidade Oeste", "900601": "Unidade Parque",
 }
 ESCRITORIO = ("031801", "Escritório (demonstração)")
-# Quem cuida de cada unidade (nomes fictícios).
-RESPONSAVEIS = {
-    "900101": "Responsável Exemplo Ana", "900201": "Responsável Exemplo Ana",
-    "900301": "Responsável Exemplo Bruno", "900401": "Responsável Exemplo Bruno",
-    "900501": "Responsável Exemplo Carla", "900601": "Responsável Exemplo Carla",
-    ESCRITORIO[0]: "Responsável Exemplo Diretoria",
+# Divisão (ticket) de cada unidade fictícia, usada quando não há cadastro importado.
+DIVISOES = {
+    "900101": "TICKET 1", "900201": "TICKET 1", "900301": "TICKET 2", "900401": "TICKET 2",
+    "900501": "TICKET 3", "900601": "TICKET 3", ESCRITORIO[0]: "TICKET 2",
 }
 
 # prefixo -> (categoria, faixa de valor em reais, exige nota fiscal, peso de frequência)
@@ -109,8 +107,15 @@ def _cadastro() -> dict:
     return cadastro
 
 
-def gerar(hoje: date, dias: int = 120) -> ResultadoColeta:
+def gerar(hoje: date, dias: int = 120, filiais: dict | None = None) -> ResultadoColeta:
+    """Gera os dados. Com ``filiais`` (cadastro importado), usa as filiais reais."""
     aleatorio = random.Random(SEMENTE)
+    if filiais:
+        unidades = {codigo: dados["nome"] for codigo, dados in sorted(filiais.items()) if codigo != ESCRITORIO[0]}
+        frequencia = [0, 0, 0, 1, 1, 2]  # muitas filiais: menos lançamentos por dia em cada uma
+    else:
+        unidades = FILIAIS
+        frequencia = [0, 1, 1, 1, 2, 2]
     cadastro = _cadastro()
     por_prefixo: dict[str, list[str]] = {}
     for codigo, dados in cadastro.items():
@@ -161,8 +166,8 @@ def gerar(hoje: date, dias: int = 120) -> ResultadoColeta:
         dia = inicio + timedelta(days=deslocamento)
         if dia.weekday() == 6:  # domingo sem lançamentos
             continue
-        for filial in FILIAIS:
-            for _ in range(aleatorio.choice([0, 1, 1, 1, 2, 2])):
+        for filial in unidades:
+            for _ in range(aleatorio.choice(frequencia)):
                 prefixo = aleatorio.choices(prefixos, pesos)[0]
                 categoria, faixa, exige_nf, _peso = PREFIXOS[prefixo]
                 codigo = aleatorio.choice(por_prefixo[prefixo])
@@ -210,14 +215,19 @@ def gerar(hoje: date, dias: int = 120) -> ResultadoColeta:
     lancamentos.extend(copias)
     lancamentos.sort(key=lambda l: (l.data, l.referencia))
 
-    filiais = {codigo: {"nome": nome, "responsavel": RESPONSAVEIS[codigo]} for codigo, nome in FILIAIS.items()}
-    filiais[ESCRITORIO[0]] = {"nome": ESCRITORIO[1], "responsavel": RESPONSAVEIS[ESCRITORIO[0]]}
+    # Sem cadastro importado: unidades fictícias distribuídas em tickets.
+    # Com cadastro: nome e ticket vêm dele na consolidação.
+    if filiais:
+        cadastro_filiais = filiais
+    else:
+        cadastro_filiais = {codigo: {"nome": nome, "divisao": DIVISOES[codigo]} for codigo, nome in FILIAIS.items()}
+        cadastro_filiais[ESCRITORIO[0]] = {"nome": ESCRITORIO[1], "divisao": DIVISOES[ESCRITORIO[0]]}
     categorias = {p: dados[0] for p, dados in PREFIXOS.items() if p}
     categorias.update({p: dados[0] for p, dados in PREFIXOS_ESCRITORIO.items()})
     return ResultadoColeta(
         lancamentos=lancamentos,
         simulada=True,
-        referencias={"cadastro_favorecidos": cadastro, "filiais": filiais,
+        referencias={"cadastro_favorecidos": cadastro, "filiais": cadastro_filiais,
                      "categorias_por_prefixo": categorias},
         observacao="Dados fictícios gerados localmente para demonstração.",
     )
@@ -227,12 +237,13 @@ class ConectorDemonstracao(Conector):
     nome = "demonstração (dados fictícios)"
     simulado = True
 
-    def __init__(self, hoje: date | None = None):
+    def __init__(self, hoje: date | None = None, filiais: dict | None = None):
         self._hoje = hoje
+        self._filiais = filiais or {}
 
     def coletar(self, inicio: date, fim: date) -> ResultadoColeta:
         hoje = self._hoje or date.today()
-        resultado = gerar(hoje, dias=max(1, (fim - inicio).days + 1))
+        resultado = gerar(hoje, dias=max(1, (fim - inicio).days + 1), filiais=self._filiais)
         resultado.lancamentos = [
             l for l in resultado.lancamentos if inicio.isoformat() <= l.data <= fim.isoformat()
         ]

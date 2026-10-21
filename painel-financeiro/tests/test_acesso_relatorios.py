@@ -273,9 +273,11 @@ class TestResponsaveis(Base):
                     "3": {"divisao": "TICKET 9"}}
         config["responsaveis"]["por_divisao"] = {"TICKET 1": "Da divisão"}
         config["responsaveis"]["por_filial"] = {"3": "Da config"}
-        self.assertEqual(responsavel_da_filial("1", cadastro, config), "Da divisão")
+        cadastro["5"] = {"divisao": "TICKET 5"}
+        self.assertEqual(responsavel_da_filial("1", cadastro, config), "TICKET 1 — Da divisão")
         self.assertEqual(responsavel_da_filial("2", cadastro, config), "Da planilha")
         self.assertEqual(responsavel_da_filial("3", cadastro, config), "Da config")
+        self.assertEqual(responsavel_da_filial("5", cadastro, config), "TICKET 5")  # sem nome: o ticket
         self.assertEqual(responsavel_da_filial("4", cadastro, config), "Sem responsável definido")
 
     def test_filtro_por_responsavel(self):
@@ -293,3 +295,21 @@ class TestResponsaveis(Base):
         self.assertEqual(painel["opcoes"]["responsaveis"],
                          [{"nome": "Ana", "clinicas": ["Filial 000001", "Filial 000002"]},
                           {"nome": "Bruno", "clinicas": ["Filial 000003"]}])
+
+
+class TestDemonstracaoComCadastro(unittest.TestCase):
+    def test_usa_filiais_e_tickets_do_cadastro(self):
+        from sorria.conectores.demonstracao import ConectorDemonstracao
+        from sorria.analise import _agrupar
+        cadastro = {"016501": {"nome": "GOIÂNIA I", "divisao": "TICKET 1"},
+                    "017401": {"nome": "ANÁPOLIS I", "divisao": "TICKET 2"},
+                    ESCRITORIO: {"nome": "ESCRITÓRIO", "divisao": "TICKET 2"}}
+        resultado = ConectorDemonstracao(hoje=HOJE, filiais=cadastro).coletar(date(2026, 7, 1), HOJE)
+        lancamentos = _consolidar(resultado, cfg.PADRAO, cadastro)
+        self.assertEqual({(l.clinica, l.responsavel) for l in lancamentos},
+                         {("GOIÂNIA I", "TICKET 1"), ("ANÁPOLIS I", "TICKET 2"), ("ESCRITÓRIO", "TICKET 2")})
+        self.assertEqual({l.prefixo for l in lancamentos if l.filial == ESCRITORIO}, {"FOL", "PJ"})
+        grupos = _agrupar([{"referencia": "a", "valor_centavos": 1, "responsavel": "TICKET 1"},
+                           {"referencia": "a", "valor_centavos": 1, "responsavel": "TICKET 1"}],
+                          lambda o: o["responsavel"])
+        self.assertEqual(grupos, [{"rotulo": "TICKET 1", "ocorrencias": 2, "lancamentos": 1, "valor_centavos": 1}])

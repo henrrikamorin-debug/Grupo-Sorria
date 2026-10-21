@@ -56,10 +56,12 @@ PADRAO: dict = {
         "sem_prefixo": "Diversos",
     },
     "responsaveis": {
-        # Quem cuida de cada filial. Ordem de prioridade:
+        # Quem cuida de cada filial. Padrão: a DIVISÃO da planilha de filiais
+        # (TICKET 1 a 6). Ordem de prioridade:
         #   1. por_filial: {"016501": "Nome"}  (código TOTVS da filial)
         #   2. coluna RESPONSÁVEL da planilha de filiais, se existir
-        #   3. por_divisao: {"TICKET 1": "Nome"}  (coluna DIVISÃO da planilha)
+        #   3. divisão: "TICKET 1", ou "TICKET 1 — Nome" se houver
+        #      por_divisao: {"TICKET 1": "Nome"}
         "por_filial": {},
         "por_divisao": {},
         "sem_responsavel": "Sem responsável definido",
