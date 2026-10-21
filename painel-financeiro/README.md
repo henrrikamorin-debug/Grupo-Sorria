@@ -83,6 +83,17 @@ Endereços (padrão):
   tarefa → “Ao fazer logon” → ação `scripts\iniciar.bat`. Desative a
   suspensão/hibernação do computador nas opções de energia.
 
+## Prévia publicada (dados fictícios)
+
+Uma prévia estática do painel está publicada no Claude:
+<https://claude.ai/artifact/YRNuLF66Y4m6eHcFkrMR6K> (acesso controlado pelo
+menu Compartilhar da página). Ela usa sempre dados fictícios, simula a API no
+navegador e não faz coleta. Para regenerar:
+`python3 scripts/previa/gerar_previa.py . painel-publicado.html scripts/previa/mock.js publicar`.
+
+**Dados reais não devem ser publicados dessa forma**: com o modo real, o painel
+deve ficar no serviço local do financeiro.
+
 ## Configuração
 
 Copie `config.example.json` para `config.json` e ajuste. Principais chaves:
