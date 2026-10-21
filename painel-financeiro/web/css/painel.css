@@ -175,6 +175,9 @@ html.tv .integracao { cursor: none; }
 }
 .campo input[type="date"] { color-scheme: dark; }
 .filtros .resumo { color: var(--texto-2); font-size: 0.9rem; margin-left: auto; align-self: center; }
+.filtros .resumo:empty { display: none; }
+#resumo-responsavel { margin-left: 0; max-width: 40rem; }
+#resumo-responsavel b { color: var(--dourado); font-weight: 600; }
 .resumo-tv { display: none; color: var(--texto-2); font-size: 0.95rem; }
 html.tv .filtros { display: none; }
 html.tv .resumo-tv { display: block; }

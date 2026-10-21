@@ -72,6 +72,22 @@ Endereços (padrão):
   `categorias.por_prefixo` no `config.json`; um prefixo ainda não cadastrado
   aparece como "Prefixo XXX" até ser incluído.
 
+### Responsável por filial
+
+O filtro **Responsável** fica ao lado de Clínica: ao escolher uma pessoa, o
+painel mostra só as filiais que ela cuida (indicadores, gráficos, tabela e
+exportação), e a lista de clínicas passa a ter apenas essas filiais. O nome
+também aparece abaixo da clínica na tabela, no detalhe da ocorrência, no CSV
+e no relatório mensal.
+
+De onde vem o nome (o primeiro que existir):
+1. `responsaveis.por_filial` no `config.json`: `{"016501": "Nome"}`;
+2. coluna **RESPONSÁVEL** na planilha de filiais (reimporte com
+   `importar-filiais` depois de preencher);
+3. `responsaveis.por_divisao`: `{"TICKET 1": "Nome"}`, pela coluna DIVISÃO.
+
+Sem nenhum deles, aparece "Sem responsável definido".
+
 ### Área restrita do escritório (senha)
 
 A filial do escritório (`031801`, Clínicas Inteligentes Regional Goiás)

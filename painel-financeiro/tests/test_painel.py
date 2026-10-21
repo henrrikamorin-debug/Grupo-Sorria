@@ -323,9 +323,9 @@ class TestExportacao(unittest.TestCase):
         linhas = list(csv.reader(io.StringIO(conteudo.lstrip("﻿")), delimiter=";"))
         self.assertEqual(len(linhas), 4)
         self.assertEqual(linhas[1][0], "DEMONSTRAÇÃO — DADOS FICTÍCIOS")
-        self.assertEqual(linhas[1][1], "'=CMD()")
-        self.assertEqual([l[7] for l in linhas[1:]], ["1234,56", "", ""])
-        self.assertEqual(linhas[1][6], "1234,56")
+        self.assertEqual(linhas[1][2], "'=CMD()")
+        self.assertEqual([l[8] for l in linhas[1:]], ["1234,56", "", ""])
+        self.assertEqual(linhas[1][7], "1234,56")
 
 
 class TestServidor(Base):

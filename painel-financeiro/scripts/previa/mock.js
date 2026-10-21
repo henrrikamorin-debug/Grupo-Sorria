@@ -61,12 +61,13 @@ function seriePeriodo(lista, inicioIso, fimIso) {
 }
 function painelPrevia(p) {
   const f = { inicio: p.get("inicio") || null, fim: p.get("fim") || null, clinica: p.get("clinica") || null,
-    categoria: p.get("categoria") || null, situacao: p.get("situacao") || null };
+    categoria: p.get("categoria") || null, situacao: p.get("situacao") || null, responsavel: p.get("responsavel") || null };
   const tv = p.get("tv") === "1";
-  const passa = (data, clinica, categoria) => (!f.inicio || data >= f.inicio) && (!f.fim || data <= f.fim) &&
-    (!f.clinica || clinica === f.clinica) && (!f.categoria || categoria === f.categoria);
-  const registros = PREVIA.lancamentos.filter(([c, cat, d]) => passa(d, c, cat)).length;
-  const lista = (tv ? PREVIA.tv : PREVIA.normal).filter((o) => passa(o.data, o.clinica, o.categoria) && (!f.situacao || o.situacao === f.situacao));
+  const passa = (data, clinica, categoria, responsavel) => (!f.inicio || data >= f.inicio) && (!f.fim || data <= f.fim) &&
+    (!f.clinica || clinica === f.clinica) && (!f.categoria || categoria === f.categoria) &&
+    (!f.responsavel || responsavel === f.responsavel);
+  const registros = PREVIA.lancamentos.filter(([c, cat, d, r]) => passa(d, c, cat, r)).length;
+  const lista = (tv ? PREVIA.tv : PREVIA.normal).filter((o) => passa(o.data, o.clinica, o.categoria, o.responsavel) && (!f.situacao || o.situacao === f.situacao));
   const [soma, afetados] = somaUnica(lista);
   const cont = { pendente: 0, em_analise: 0, resolvida: 0 }; lista.forEach((o) => cont[o.situacao]++);
   const per = PREVIA.opcoes.periodo_disponivel;

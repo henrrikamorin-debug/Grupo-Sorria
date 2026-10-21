@@ -30,6 +30,13 @@ FILIAIS = {
     "900401": "Unidade Leste", "900501": "Unidade Oeste", "900601": "Unidade Parque",
 }
 ESCRITORIO = ("031801", "Escritório (demonstração)")
+# Quem cuida de cada unidade (nomes fictícios).
+RESPONSAVEIS = {
+    "900101": "Responsável Exemplo Ana", "900201": "Responsável Exemplo Ana",
+    "900301": "Responsável Exemplo Bruno", "900401": "Responsável Exemplo Bruno",
+    "900501": "Responsável Exemplo Carla", "900601": "Responsável Exemplo Carla",
+    ESCRITORIO[0]: "Responsável Exemplo Diretoria",
+}
 
 # prefixo -> (categoria, faixa de valor em reais, exige nota fiscal, peso de frequência)
 PREFIXOS = {
@@ -203,8 +210,8 @@ def gerar(hoje: date, dias: int = 120) -> ResultadoColeta:
     lancamentos.extend(copias)
     lancamentos.sort(key=lambda l: (l.data, l.referencia))
 
-    filiais = {codigo: {"nome": nome} for codigo, nome in FILIAIS.items()}
-    filiais[ESCRITORIO[0]] = {"nome": ESCRITORIO[1]}
+    filiais = {codigo: {"nome": nome, "responsavel": RESPONSAVEIS[codigo]} for codigo, nome in FILIAIS.items()}
+    filiais[ESCRITORIO[0]] = {"nome": ESCRITORIO[1], "responsavel": RESPONSAVEIS[ESCRITORIO[0]]}
     categorias = {p: dados[0] for p, dados in PREFIXOS.items() if p}
     categorias.update({p: dados[0] for p, dados in PREFIXOS_ESCRITORIO.items()})
     return ResultadoColeta(

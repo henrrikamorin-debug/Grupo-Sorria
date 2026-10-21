@@ -55,6 +55,15 @@ PADRAO: dict = {
         # Título sem prefixo no TOTVS.
         "sem_prefixo": "Diversos",
     },
+    "responsaveis": {
+        # Quem cuida de cada filial. Ordem de prioridade:
+        #   1. por_filial: {"016501": "Nome"}  (código TOTVS da filial)
+        #   2. coluna RESPONSÁVEL da planilha de filiais, se existir
+        #   3. por_divisao: {"TICKET 1": "Nome"}  (coluna DIVISÃO da planilha)
+        "por_filial": {},
+        "por_divisao": {},
+        "sem_responsavel": "Sem responsável definido",
+    },
     "acesso_restrito": {
         # Filiais cujos dados só aparecem após digitar a senha (ex.: o escritório,
         # que concentra a folha dos colaboradores e os pagamentos a PJ).

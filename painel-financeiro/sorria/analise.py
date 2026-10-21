@@ -29,6 +29,7 @@ class Filtros:
     clinica: str | None = None
     categoria: str | None = None
     situacao: str | None = None
+    responsavel: str | None = None
 
     @classmethod
     def de_parametros(cls, parametros: dict) -> "Filtros":
@@ -39,7 +40,8 @@ class Filtros:
             bruto = (bruto or "").strip()
             return bruto or None
 
-        filtros = cls(valor("inicio"), valor("fim"), valor("clinica"), valor("categoria"), valor("situacao"))
+        filtros = cls(valor("inicio"), valor("fim"), valor("clinica"), valor("categoria"), valor("situacao"),
+                      valor("responsavel"))
         for nome in ("inicio", "fim"):
             texto = getattr(filtros, nome)
             if texto:
@@ -66,6 +68,8 @@ class Filtros:
             condicoes.append("clinica = ?"); valores.append(self.clinica)
         if self.categoria:
             condicoes.append("categoria = ?"); valores.append(self.categoria)
+        if self.responsavel:
+            condicoes.append("responsavel = ?"); valores.append(self.responsavel)
         if com_situacao and self.situacao:
             condicoes.append("situacao = ?"); valores.append(self.situacao)
         return (" WHERE " + " AND ".join(condicoes)) if condicoes else "", valores
@@ -86,7 +90,7 @@ SQL_OCORRENCIAS = """
 SELECT * FROM (
     SELECT o.id, o.referencia, o.regra_codigo, o.regra_nome, o.descricao, o.evidencia,
            o.clinica, o.categoria, o.data, o.valor_centavos, o.coleta_id, o.filial,
-           COALESCE(o.titulo, o.referencia) AS titulo,
+           COALESCE(o.titulo, o.referencia) AS titulo, o.responsavel,
            COALESCE(s.situacao, 'pendente') AS situacao,
            COALESCE(s.primeira_deteccao, o.detectada_em) AS primeira_deteccao,
            s.atualizada_em AS situacao_atualizada_em
@@ -171,7 +175,14 @@ def opcoes(conexao, ocultar_filiais=()) -> dict:
     categorias = [r[0] for r in conexao.execute(
         f"SELECT DISTINCT categoria FROM lancamentos{where} ORDER BY categoria", valores)]
     limites = conexao.execute(f"SELECT MIN(data), MAX(data) FROM lancamentos{where}", valores).fetchone()
+    # Responsável -> filiais que cuida (para o filtro "Responsável" ao lado de "Clínica").
+    por_responsavel: dict[str, list[str]] = {}
+    for nome, clinica in conexao.execute(
+            f"SELECT DISTINCT responsavel, clinica FROM lancamentos{where} ORDER BY responsavel, clinica", valores):
+        if nome:
+            por_responsavel.setdefault(nome, []).append(clinica)
     return {
+        "responsaveis": [{"nome": n, "clinicas": c} for n, c in por_responsavel.items()],
         "clinicas": clinicas,
         "categorias": categorias,
         "situacoes": [{"valor": s, "rotulo": ROTULOS_SITUACAO[s]} for s in SITUACOES],

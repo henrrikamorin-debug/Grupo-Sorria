@@ -20,6 +20,11 @@
     "por_prefixo": {},
     "sem_prefixo": "Diversos"
   },
+  "responsaveis": {
+    "por_filial": {},
+    "por_divisao": {},
+    "sem_responsavel": "Sem responsável definido"
+  },
   "acesso_restrito": {
     "filiais": [
       "031801"

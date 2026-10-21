@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS lancamentos (
     filial TEXT,
     titulo TEXT,
     prefixo TEXT,
+    responsavel TEXT,
     extras TEXT NOT NULL DEFAULT '{}',
     coleta_id INTEGER NOT NULL
 );
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
     valor_centavos INTEGER,
     filial TEXT,
     titulo TEXT,
+    responsavel TEXT,
     detectada_em TEXT NOT NULL,
     coleta_id INTEGER NOT NULL,
     UNIQUE (referencia, regra_codigo)
@@ -154,6 +156,7 @@ def inicializar(caminho: Path, modo: str) -> None:
 MIGRACOES = [
     ("lancamentos", "filial", "TEXT"), ("lancamentos", "titulo", "TEXT"), ("lancamentos", "prefixo", "TEXT"),
     ("ocorrencias", "filial", "TEXT"), ("ocorrencias", "titulo", "TEXT"),
+    ("lancamentos", "responsavel", "TEXT"), ("ocorrencias", "responsavel", "TEXT"),
 ]
 
 

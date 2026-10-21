@@ -19,6 +19,7 @@ const estado = {
     periodo: url.searchParams.get("periodo") || lerPreferencia("periodo", "30d"),
     inicio: url.searchParams.get("inicio") || lerPreferencia("inicio", ""),
     fim: url.searchParams.get("fim") || lerPreferencia("fim", ""),
+    responsavel: url.searchParams.get("responsavel") || "",
     clinica: url.searchParams.get("clinica") || "",
     categoria: url.searchParams.get("categoria") || "",
     situacao: url.searchParams.get("situacao") || "",
@@ -56,7 +57,7 @@ function parametros(extra = {}) {
   const p = new URLSearchParams();
   if (inicio) p.set("inicio", inicio);
   if (fim) p.set("fim", fim);
-  for (const chave of ["clinica", "categoria", "situacao"]) {
+  for (const chave of ["responsavel", "clinica", "categoria", "situacao"]) {
     if (estado.filtros[chave]) p.set(chave, estado.filtros[chave]);
   }
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
@@ -66,7 +67,8 @@ function parametros(extra = {}) {
 function descricaoFiltros() {
   const [inicio, fim] = intervaloDoPeriodo();
   const partes = [inicio || fim ? `${dataCurta(inicio)} a ${dataCurta(fim)}` : "Todo o período coletado"];
-  partes.push(estado.filtros.clinica || "Todas as clínicas");
+  if (estado.filtros.responsavel) partes.push(estado.filtros.responsavel);
+  partes.push(estado.filtros.clinica || (estado.filtros.responsavel ? "suas filiais" : "Todas as clínicas"));
   if (estado.filtros.categoria) partes.push(estado.filtros.categoria);
   if (estado.filtros.situacao) {
     const s = estado.dados?.opcoes.situacoes.find((x) => x.valor === estado.filtros.situacao);
@@ -194,12 +196,12 @@ function renderizarIntegracao(s) {
     : s.detalhe || "nenhuma coleta concluída";
 }
 
-function preencherSelect(id, valores, selecionado, rotulos = null) {
+function preencherSelect(id, valores, selecionado, rotulos = null, todos = "Todas") {
   const select = $(id);
   const atual = [...select.options].slice(1).map((o) => o.value).join("|");
   const novo = valores.join("|");
   if (atual !== novo) {
-    select.innerHTML = `<option value="">Todas</option>` + valores
+    select.innerHTML = `<option value="">${todos}</option>` + valores
       .map((v, i) => `<option value="${esc(v)}">${esc(rotulos ? rotulos[i] : v)}</option>`).join("");
   }
   // Mantém o filtro escolhido mesmo que ele não exista no retrato atual.
@@ -209,8 +211,20 @@ function preencherSelect(id, valores, selecionado, rotulos = null) {
   select.value = selecionado || "";
 }
 
+function clinicasDoResponsavel(opcoes) {
+  const pessoa = (opcoes.responsaveis || []).find((r) => r.nome === estado.filtros.responsavel);
+  return pessoa ? pessoa.clinicas : null;
+}
+
 function renderizarOpcoes(opcoes) {
-  preencherSelect("f-clinica", opcoes.clinicas, estado.filtros.clinica);
+  const responsaveis = (opcoes.responsaveis || []).map((r) => r.nome);
+  $("f-responsavel").closest(".campo").classList.toggle("oculto", !responsaveis.length);
+  preencherSelect("f-responsavel", responsaveis, estado.filtros.responsavel, null, "Todos");
+  const daPessoa = clinicasDoResponsavel(opcoes);
+  preencherSelect("f-clinica", daPessoa || opcoes.clinicas, estado.filtros.clinica);
+  $("resumo-responsavel").innerHTML = daPessoa
+    ? `<b>${esc(estado.filtros.responsavel)}</b> cuida de ${daPessoa.length} filial(is): ${daPessoa.map(esc).join(", ")}`
+    : "";
   preencherSelect("f-categoria", opcoes.categorias, estado.filtros.categoria);
   preencherSelect("f-situacao", opcoes.situacoes.map((s) => s.valor), estado.filtros.situacao,
     opcoes.situacoes.map((s) => s.rotulo));
@@ -290,7 +304,7 @@ function desenharTabela(linhasPorPagina) {
       ? `<span class="repetido">${porReferencia[o.referencia]} ocorrências neste lançamento</span>` : "";
     return `<tr class="linha" tabindex="0" data-id="${esc(o.id)}">
       <td class="data num">${dataCurta(o.data)}</td>
-      <td>${esc(o.clinica)}</td>
+      <td>${esc(o.clinica)}${o.responsavel ? `<span class="repetido">${esc(o.responsavel)}</span>` : ""}</td>
       <td class="ref num">${esc(o.titulo || o.referencia)}</td>
       <td class="regra"><span class="codigo">${esc(o.regra_codigo)}</span>${esc(o.regra_nome)}</td>
       <td class="descricao">${esc(o.descricao)}</td>
@@ -347,6 +361,7 @@ function abrirOcorrencia(id) {
       <dt>Descrição</dt><dd>${esc(o.descricao)}</dd>
       <dt>Nº do título</dt><dd class="num">${esc(o.titulo || o.referencia)}</dd>
       <dt>Filial TOTVS</dt><dd class="num">${esc(o.filial || "—")}</dd>
+      <dt>Responsável</dt><dd>${esc(o.responsavel || "—")}</dd>
       <dt>Data</dt><dd class="num">${dataCurta(o.data)}</dd>
       <dt>Valor</dt><dd class="num">${reais(o.valor_centavos)}</dd>
       <dt>Situação</dt><dd><span class="situacao ${esc(o.situacao)}">${esc(o.situacao_rotulo)}</span></dd>
@@ -590,11 +605,18 @@ function ligarEventos() {
   });
   $("f-inicio").addEventListener("change", (e) => alterarFiltro("inicio", e.target.value));
   $("f-fim").addEventListener("change", (e) => alterarFiltro("fim", e.target.value));
+  $("f-responsavel").addEventListener("change", (e) => {
+    estado.filtros.responsavel = e.target.value;
+    // A clínica escolhida antes só continua se for uma das filiais dessa pessoa.
+    const daPessoa = estado.dados && clinicasDoResponsavel(estado.dados.opcoes);
+    if (daPessoa && !daPessoa.includes(estado.filtros.clinica)) estado.filtros.clinica = "";
+    aplicarFiltros();
+  });
   $("f-clinica").addEventListener("change", (e) => alterarFiltro("clinica", e.target.value));
   $("f-categoria").addEventListener("change", (e) => alterarFiltro("categoria", e.target.value));
   $("f-situacao").addEventListener("change", (e) => alterarFiltro("situacao", e.target.value));
   $("btn-limpar").addEventListener("click", () => {
-    estado.filtros = { periodo: "30d", inicio: "", fim: "", clinica: "", categoria: "", situacao: "" };
+    estado.filtros = { periodo: "30d", inicio: "", fim: "", responsavel: "", clinica: "", categoria: "", situacao: "" };
     aplicarFiltros();
   });
   document.querySelectorAll("[data-metrica]").forEach((b) => b.addEventListener("click", () => {

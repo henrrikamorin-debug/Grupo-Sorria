@@ -50,5 +50,6 @@ def analisar(lancamentos: list[Lancamento], referencias: dict, regras: list[Regr
                 "valor_centavos": lanc.valor_centavos,
                 "filial": lanc.filial,
                 "titulo": lanc.titulo or lanc.referencia,
+                "responsavel": lanc.responsavel,
             }
     return list(ocorrencias.values())

@@ -40,6 +40,16 @@ def classificar_categoria(prefixo: str | None, mapa: dict[str, str], sem_prefixo
 
 
 # ---------------------------------------------------------------- filiais
+def responsavel_da_filial(codigo: str | None, cadastro: dict, config: dict) -> str:
+    """Quem cuida da filial: config por filial > planilha > config por divisão."""
+    regras = config.get("responsaveis", {})
+    registro = cadastro.get(codigo or "", {})
+    return (regras.get("por_filial", {}).get(codigo or "")
+            or registro.get("responsavel")
+            or regras.get("por_divisao", {}).get(registro.get("divisao", ""))
+            or regras.get("sem_responsavel", "Sem responsável definido"))
+
+
 def carregar_filiais(caminho: Path) -> dict[str, dict]:
     if not caminho.exists():
         return {}
@@ -99,7 +109,7 @@ def importar_filiais_xlsx(caminho: Path) -> tuple[dict[str, dict], list[str]]:
     """
     linhas = _ler_xlsx(caminho)
     esperadas = {"DIVISAO": "divisao", "NOME FILIAL": "razao_social", "FILIAL": "nome",
-                 "FILIAL TOTVS": "codigo", "CNPJ": "cnpj", "UF": "uf"}
+                 "FILIAL TOTVS": "codigo", "CNPJ": "cnpj", "UF": "uf", "RESPONSAVEL": "responsavel"}
     cabecalho, inicio = None, 0
     for indice, linha in enumerate(linhas):
         nomes = [_sem_acento(_texto(c)) for c in linha]
@@ -131,6 +141,8 @@ def importar_filiais_xlsx(caminho: Path) -> tuple[dict[str, dict], list[str]]:
             continue
         cadastro[codigo] = {"codigo": codigo, "nome": nome, "razao_social": registro.get("razao_social", ""),
                             "cnpj": cnpj, "uf": registro.get("uf", ""), "divisao": registro.get("divisao", "")}
+        if registro.get("responsavel"):
+            cadastro[codigo]["responsavel"] = registro["responsavel"]
     return cadastro, avisos
 
 

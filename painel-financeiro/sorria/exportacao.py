@@ -9,7 +9,7 @@ from datetime import datetime
 from .regras.base import formatar_data
 
 CABECALHO = [
-    "Origem dos dados", "Clínica", "Código da filial", "Nº do título TOTVS", "Regra", "Descrição",
+    "Origem dos dados", "Responsável", "Clínica", "Código da filial", "Nº do título TOTVS", "Regra", "Descrição",
     "Valor (R$)", "Valor sem repetição (R$)", "Data", "Situação", "Primeira detecção",
 ]
 
@@ -49,6 +49,7 @@ def gerar_csv(ocorrencias: list[dict], demonstracao: bool) -> bytes:
         vistos.add(o["referencia"])
         escritor.writerow([
             origem,
+            _seguro(o.get("responsavel") or ""),
             _seguro(o["clinica"]),
             _seguro(o.get("filial") or ""),
             _seguro(o.get("titulo") or o["referencia"]),

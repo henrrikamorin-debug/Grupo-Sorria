@@ -33,9 +33,9 @@ with db.fechando(db.conectar(caminho)) as cx:
     tv = montar_painel(cx, Filtros(), tv=True, ocultar_filiais=restritas)
     situacao = montar_situacao(cx, config, servico)
     lanc = [list(r) for r in cx.execute(
-        f"SELECT clinica, categoria, data FROM lancamentos WHERE filial IS NULL OR filial NOT IN "
+        f"SELECT clinica, categoria, data, responsavel FROM lancamentos WHERE filial IS NULL OR filial NOT IN "
         f"({', '.join('?' * len(restritas))})", restritas)] if restritas else [
-        list(r) for r in cx.execute("SELECT clinica, categoria, data FROM lancamentos")]
+        list(r) for r in cx.execute("SELECT clinica, categoria, data, responsavel FROM lancamentos")]
 situacao["historico"] = situacao["historico"][:1]
 dados = {"normal": normal["ocorrencias"], "tv": tv["ocorrencias"], "opcoes": normal["opcoes"],
          "lancamentos": lanc, "situacao": situacao, "televisao": config["televisao"]}

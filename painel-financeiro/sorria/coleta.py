@@ -20,7 +20,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import db
-from .cadastros import carregar_filiais, classificar_categoria
+from .cadastros import carregar_filiais, classificar_categoria, responsavel_da_filial
 from .conectores.base import Conector, ConectorNaoConfigurado, Lancamento, ResultadoColeta
 from .regras import analisar
 from .regras.base import Regra
@@ -178,19 +178,21 @@ class ServicoColeta:
             conexao.execute("DELETE FROM lancamentos")
             conexao.executemany(
                 "INSERT INTO lancamentos (referencia, clinica, categoria, data, valor_centavos, descricao, "
-                "favorecido, pessoa_fisica, documento, dados_bancarios, filial, titulo, prefixo, extras, "
-                "coleta_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "favorecido, pessoa_fisica, documento, dados_bancarios, filial, titulo, prefixo, responsavel, "
+                "extras, coleta_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(l.referencia, l.clinica, l.categoria, l.data, l.valor_centavos, l.descricao,
                   l.favorecido, int(l.pessoa_fisica), l.documento, l.dados_bancarios,
-                  l.filial, l.titulo, l.prefixo, db.json_dump(l.extras), coleta_id) for l in lancamentos],
+                  l.filial, l.titulo, l.prefixo, l.responsavel, db.json_dump(l.extras), coleta_id)
+                 for l in lancamentos],
             )
             conexao.executemany(
                 "INSERT INTO ocorrencias (id, referencia, regra_codigo, regra_nome, descricao, evidencia, "
-                "clinica, categoria, data, valor_centavos, filial, titulo, detectada_em, coleta_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "clinica, categoria, data, valor_centavos, filial, titulo, responsavel, detectada_em, coleta_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(o["id"], o["referencia"], o["regra_codigo"], o["regra_nome"], o["descricao"],
                   db.json_dump(o["evidencia"]), o["clinica"], o["categoria"], o["data"],
-                  o["valor_centavos"], o["filial"], o["titulo"], agora, coleta_id) for o in ocorrencias],
+                  o["valor_centavos"], o["filial"], o["titulo"], o["responsavel"], agora, coleta_id)
+                 for o in ocorrencias],
             )
             conexao.executemany(
                 "INSERT OR IGNORE INTO situacao_ocorrencias (id, situacao, primeira_deteccao, atualizada_em) "
@@ -231,6 +233,8 @@ def _consolidar(resultado: ResultadoColeta, config: dict | None = None,
             l.clinica = filiais.get(l.filial, {}).get("nome") or f"Filial {l.filial}"
         if not l.categoria:
             l.categoria = classificar_categoria(l.prefixo, mapa, sem_prefixo)
+        if not l.responsavel:
+            l.responsavel = responsavel_da_filial(l.filial, filiais, config or {})
         if not l.referencia or not l.clinica or not l.categoria:
             raise ValueError(f"Lançamento incompleto recebido da origem: {l.referencia!r}")
         date.fromisoformat(l.data)  # levanta ValueError se a data for inválida

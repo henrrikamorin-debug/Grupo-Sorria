@@ -92,8 +92,11 @@ def calcular(conexao, config: dict, mes: str, filiais: dict, ocultar_filiais=())
             rotulo = f"{o['regra_codigo']} — {o['regra_nome']}"
             regras[rotulo] = regras.get(rotulo, 0) + 1
         cadastro = filiais.get(filial or "", {})
+        responsavel = itens[0]["responsavel"] if itens else conexao.execute(
+            "SELECT responsavel FROM lancamentos WHERE clinica = ? LIMIT 1", (clinica,)).fetchone()[0]
         linhas.append({
             "clinica": clinica, "filial": filial or "", "divisao": cadastro.get("divisao", ""),
+            "responsavel": responsavel or "",
             "uf": cadastro.get("uf", ""), "registros": total, "ocorrencias": len(itens),
             "afetados": afetados, "valor_centavos": valor, "pendentes": pendentes,
             "taxa": afetados / total if total else 0.0,
@@ -146,12 +149,12 @@ def gerar_html(dados: dict) -> str:
              if dados["demonstracao"] else "")
     ranking = "".join(
         f"<tr><td class='n'>{l['posicao']}º</td><td>{e(l['clinica'])}<small>{e(l['filial'])}"
-        f"{' · ' + e(l['divisao']) if l['divisao'] else ''}</small></td>"
+        f"{' · ' + e(l['divisao']) if l['divisao'] else ''}</small></td><td>{e(l['responsavel'])}</td>"
         f"<td class='n'>{l['registros']}</td><td class='n'>{l['ocorrencias']}</td>"
         f"<td class='n'>{l['afetados']}</td><td class='n forte'>{_pct(l['taxa'])}</td>"
         f"<td class='n'>{l['pendentes']}</td><td class='n'>{e(formatar_reais(l['valor_centavos']))}</td>"
         f"<td class='n'>{e(_variacao(l['ocorrencias'], l['anterior']))}</td></tr>"
-        for l in dados["ranking"]) or "<tr><td colspan='9'>Nenhuma filial com lançamentos suficientes no mês.</td></tr>"
+        for l in dados["ranking"]) or "<tr><td colspan='10'>Nenhuma filial com lançamentos suficientes no mês.</td></tr>"
     fora = ", ".join(f"{e(l['clinica'])} ({l['registros']} lanç.)" for l in dados["fora_do_ranking"]) or "nenhuma"
     regras = "".join(f"<li>{e(nome)}: <b>{qtd}</b></li>" for nome, qtd in dados["regras"]) or "<li>Nenhuma ocorrência.</li>"
 
@@ -165,7 +168,8 @@ def gerar_html(dados: dict) -> str:
             f"<td>{e(ROTULOS_SITUACAO[o['situacao']])}</td></tr>" for o in itens)
         resto = len(l["itens"]) - len(itens)
         destaques.append(
-            f"<section class='destaque'><h3>{l['posicao']}º · {e(l['clinica'])} "
+            f"<section class='destaque'><h3>{l['posicao']}º · {e(l['clinica'])}"
+            f"{' — ' + e(l['responsavel']) if l['responsavel'] else ''} "
             f"<small>{_pct(l['taxa'])} dos lançamentos com inconsistência · {l['pendentes']} pendente(s)</small></h3>"
             f"<p>Principais regras: {', '.join(f'{e(n)} ({q})' for n, q in l['regras'][:4])}</p>"
             f"<table><thead><tr><th>Data</th><th>Nº do título</th><th>Regra</th><th>Descrição</th>"
@@ -214,7 +218,7 @@ td small {{ display:block; color:var(--suave); font-size:12px; }}
 </div>
 <h2>Filiais com mais dificuldade</h2>
 <p class="criterio">Ordem: percentual de lançamentos do mês com pelo menos uma inconsistência; empate por pendências e depois por número de ocorrências. Filiais com menos de {dados['minimo']} lançamentos no mês ficam fora do ranking: {fora}.</p>
-<div class="tabela"><table><thead><tr><th class="n">#</th><th>Filial</th><th class="n">Lançamentos</th><th class="n">Ocorrências</th>
+<div class="tabela"><table><thead><tr><th class="n">#</th><th>Filial</th><th>Responsável</th><th class="n">Lançamentos</th><th class="n">Ocorrências</th>
 <th class="n">Afetados</th><th class="n">% com problema</th><th class="n">Pendentes</th><th class="n">Valor associado</th><th class="n">Vs. mês anterior</th></tr></thead>
 <tbody>{ranking}</tbody></table></div>
 <h2>Detalhamento das {len(dados['destaques'])} filiais em destaque</h2>
@@ -228,12 +232,12 @@ td small {{ display:block; color:var(--suave); font-size:12px; }}
 def gerar_csv(dados: dict) -> bytes:
     saida = io.StringIO()
     escritor = csv.writer(saida, delimiter=";", lineterminator="\r\n")
-    escritor.writerow(["Origem", "Mês", "Posição", "Filial", "Código TOTVS", "Divisão", "UF", "Lançamentos",
+    escritor.writerow(["Origem", "Mês", "Posição", "Filial", "Responsável", "Código TOTVS", "Divisão", "UF", "Lançamentos",
                        "Ocorrências", "Lançamentos afetados", "% com problema", "Pendentes",
                        "Valor associado (R$)", "Ocorrências mês anterior"])
     origem = "DEMONSTRAÇÃO — DADOS FICTÍCIOS" if dados["demonstracao"] else "Coleta TOTVS"
     for l in dados["ranking"] + dados["fora_do_ranking"]:
-        escritor.writerow([origem, dados["mes"], l.get("posicao", "fora do ranking"), l["clinica"], l["filial"],
+        escritor.writerow([origem, dados["mes"], l.get("posicao", "fora do ranking"), l["clinica"], l["responsavel"], l["filial"],
                            l["divisao"], l["uf"], l["registros"], l["ocorrencias"], l["afetados"],
                            f"{l['taxa'] * 100:.1f}".replace(".", ","), l["pendentes"],
                            f"{l['valor_centavos'] / 100:.2f}".replace(".", ","), l["anterior"]])

@@ -51,8 +51,8 @@ class TestCategorias(unittest.TestCase):
 
 class TestFiliais(unittest.TestCase):
     def test_importa_planilha(self):
-        linhas = [["DIVISÃO", "NOME FILIAL ", " FILIAL ", "FILIAL TOTVS", "CNPJ ", "UF"],
-                  ["TICKET 1", "  EMPRESA A LTDA", "GOIÂNIA I ", "016501", "31.624.639/0001-71", "GO"],
+        linhas = [["DIVISÃO", "NOME FILIAL ", " FILIAL ", "FILIAL TOTVS", "CNPJ ", "UF", "RESPONSÁVEL"],
+                  ["TICKET 1", "  EMPRESA A LTDA", "GOIÂNIA I ", "016501", "31.624.639/0001-71", "GO", "Fulana"],
                   ["TICKET 2", "EMPRESA B", "ESCRITÓRIO", "031801", "51.039.604/0001-82", "GO"],
                   ["TICKET 2", "", "SEM CÓDIGO", "", "", "DF"],
                   ["TICKET 3", "EMPRESA C", "PARACATU", "036401", "27.324.440/001-40", "MG"]]
@@ -76,6 +76,8 @@ class TestFiliais(unittest.TestCase):
         self.assertEqual(cadastro["016501"]["nome"], "GOIÂNIA I")
         self.assertEqual(cadastro["016501"]["razao_social"], "EMPRESA A LTDA")
         self.assertEqual(cadastro["031801"]["divisao"], "TICKET 2")
+        self.assertEqual(cadastro["016501"]["responsavel"], "Fulana")
+        self.assertNotIn("responsavel", cadastro["031801"])
         self.assertTrue(any("SEM CÓDIGO" in a for a in avisos))
         self.assertTrue(any("036401" in a and "CNPJ" in a for a in avisos))
 
@@ -261,3 +263,33 @@ class TestMigracao(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestResponsaveis(Base):
+    def test_prioridade_dos_nomes(self):
+        from sorria.cadastros import responsavel_da_filial
+        config = json.loads(json.dumps(cfg.PADRAO))
+        cadastro = {"1": {"divisao": "TICKET 1"}, "2": {"divisao": "TICKET 1", "responsavel": "Da planilha"},
+                    "3": {"divisao": "TICKET 9"}}
+        config["responsaveis"]["por_divisao"] = {"TICKET 1": "Da divisão"}
+        config["responsaveis"]["por_filial"] = {"3": "Da config"}
+        self.assertEqual(responsavel_da_filial("1", cadastro, config), "Da divisão")
+        self.assertEqual(responsavel_da_filial("2", cadastro, config), "Da planilha")
+        self.assertEqual(responsavel_da_filial("3", cadastro, config), "Da config")
+        self.assertEqual(responsavel_da_filial("4", cadastro, config), "Sem responsável definido")
+
+    def test_filtro_por_responsavel(self):
+        self.config["responsaveis"]["por_filial"] = {"000001": "Ana", "000002": "Ana", "000003": "Bruno"}
+        lancs = [_titulo("A", "000001", "MAT", 100), _titulo("B", "000002", "MAT", 200),
+                 _titulo("C", "000003", "MAT", 400)]
+        regra = __import__("test_painel")._regra("R1", lambda l: True)
+        ServicoColeta(self.config, self.caminho, ConectorFixo(lancs), [regra]).executar()
+        with db.fechando(db.conectar(self.caminho)) as conexao:
+            from sorria.analise import montar_painel
+            painel = montar_painel(conexao, Filtros(responsavel="Ana"))
+        self.assertEqual(painel["indicadores"]["registros_analisados"], 2)
+        self.assertEqual(painel["indicadores"]["valor_associado_centavos"], 300)
+        self.assertEqual({o["responsavel"] for o in painel["ocorrencias"]}, {"Ana"})
+        self.assertEqual(painel["opcoes"]["responsaveis"],
+                         [{"nome": "Ana", "clinicas": ["Filial 000001", "Filial 000002"]},
+                          {"nome": "Bruno", "clinicas": ["Filial 000003"]}])

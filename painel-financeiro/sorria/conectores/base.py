@@ -27,6 +27,7 @@ class Lancamento:
     filial: str | None = None       # código da filial no TOTVS (ex.: "016501")
     titulo: str | None = None       # número do título no TOTVS, exibido como referência
     prefixo: str | None = None      # prefixo do título; define a categoria
+    responsavel: str | None = None  # quem cuida da filial (resolvido pelo cadastro)
     extras: dict = field(default_factory=dict)  # demais campos da origem
 
 
