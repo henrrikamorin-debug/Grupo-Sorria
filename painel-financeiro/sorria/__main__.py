@@ -4,11 +4,18 @@
     python -m sorria parar      encerra o serviço em execução
     python -m sorria situacao   mostra a situação da última coleta
     python -m sorria coletar    executa uma coleta agora, sem servidor
+    python -m sorria importar-filiais ARQUIVO.xlsx
+                                importa o cadastro de filiais (planilha de controle)
+    python -m sorria definir-senha
+                                define a senha da área restrita (escritório)
+    python -m sorria relatorio [AAAA-MM]
+                                gera o relatório mensal (padrão: mês anterior)
 """
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import logging
 import os
@@ -74,7 +81,8 @@ def _ler_pid() -> int | None:
 def _preparar(config: dict):
     caminho = cfg.caminho_banco(config)
     db.inicializar(caminho, config["modo"])
-    servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(config["modo"]))
+    servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(config["modo"]),
+                            caminho_filiais=cfg.caminho_filiais())
     return caminho, servico
 
 
@@ -87,6 +95,7 @@ def iniciar(config: dict) -> int:
         return 1
     caminho, servico = _preparar(config)
     aplicacao = Aplicacao(config, caminho, servico, servico.regras)
+    servico.ao_concluir.append(aplicacao.gerar_relatorio_pendente)
     try:
         servidor = aplicacao.criar_servidor()
     except OSError as erro:
@@ -162,15 +171,70 @@ def coletar(config: dict) -> int:
     return 0 if resultado["situacao"] != "falha" else 2
 
 
+def importar_filiais(config: dict, arquivo: str | None) -> int:
+    from .cadastros import importar_filiais_xlsx, salvar_filiais
+
+    if not arquivo:
+        print("Informe o arquivo: python -m sorria importar-filiais CONTROLE_FILIAL_TOTVS.xlsx")
+        return 2
+    cadastro, avisos = importar_filiais_xlsx(cfg.Path(arquivo))
+    salvar_filiais(cadastro, cfg.caminho_filiais())
+    print(f"{len(cadastro)} filiais importadas para {cfg.caminho_filiais()}.")
+    for aviso in avisos:
+        print(f"  aviso: {aviso}")
+    restritas = [cadastro.get(c, {}).get("nome", f"{c} (não está na planilha)")
+                 for c in config["acesso_restrito"]["filiais"]]
+    print(f"Área restrita (com senha): {', '.join(restritas) or 'nenhuma'}")
+    return 0
+
+
+def definir_senha(config: dict, _arquivo=None) -> int:
+    from .acesso import definir_senha as gravar
+
+    senha = getpass.getpass("Nova senha da área restrita: ")
+    if senha != getpass.getpass("Repita a senha: "):
+        print("As senhas não conferem. Nada foi alterado.")
+        return 1
+    try:
+        gravar(cfg.caminho_senha(), senha)
+    except ValueError as erro:
+        print(erro)
+        return 1
+    print("Senha definida. Reinicie o serviço se ele estiver em execução para encerrar sessões abertas.")
+    return 0
+
+
+def gerar_relatorio(config: dict, mes: str | None) -> int:
+    from . import relatorio
+    from .cadastros import carregar_filiais
+
+    caminho = cfg.caminho_banco(config)
+    db.inicializar(caminho, config["modo"])
+    mes = mes or relatorio.mes_anterior()
+    with db.fechando(db.conectar(caminho)) as conexao:
+        resultado = relatorio.gerar_e_salvar(conexao, config, mes, carregar_filiais(cfg.caminho_filiais()),
+                                             cfg.pasta_relatorios(config),
+                                             ocultar_filiais=config["acesso_restrito"]["filiais"])
+    print(f"Relatório de {mes}: {cfg.pasta_relatorios(config) / f'relatorio-{mes}.html'}")
+    print(f"Filiais em destaque: {', '.join(resultado['destaques']) or 'nenhuma'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     analisador = argparse.ArgumentParser(prog="python -m sorria", description=__doc__,
                                          formatter_class=argparse.RawDescriptionHelpFormatter)
-    analisador.add_argument("comando", choices=["iniciar", "parar", "situacao", "coletar"])
+    analisador.add_argument("comando", choices=["iniciar", "parar", "situacao", "coletar", "importar-filiais",
+                                                "definir-senha", "relatorio"])
+    analisador.add_argument("argumento", nargs="?", help="arquivo .xlsx ou mês AAAA-MM, conforme o comando")
     argumentos = analisador.parse_args(argv)
     configurar_log()
     config = cfg.carregar()
-    comandos = {"iniciar": iniciar, "parar": parar, "situacao": situacao, "coletar": coletar}
-    return comandos[argumentos.comando](config)
+    simples = {"iniciar": iniciar, "parar": parar, "situacao": situacao, "coletar": coletar}
+    if argumentos.comando in simples:
+        return simples[argumentos.comando](config)
+    com_argumento = {"importar-filiais": importar_filiais, "definir-senha": definir_senha,
+                     "relatorio": gerar_relatorio}
+    return com_argumento[argumentos.comando](config, argumentos.argumento)
 
 
 if __name__ == "__main__":

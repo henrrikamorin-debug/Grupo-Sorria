@@ -1,6 +1,9 @@
 {
   "modo": "demonstracao",
-  "servidor": { "host": "127.0.0.1", "porta": 8750 },
+  "servidor": {
+    "host": "127.0.0.1",
+    "porta": 8750
+  },
   "coleta": {
     "habilitada": true,
     "intervalo_minutos": 10,
@@ -10,8 +13,27 @@
     "janela_dias": 120,
     "aceitar_coleta_vazia": false
   },
-  "totvs": { "conector": "nao_configurado" },
-  "televisao": { "rotacao_tabela_segundos": 20 },
+  "totvs": {
+    "conector": "nao_configurado"
+  },
+  "categorias": {
+    "por_prefixo": {},
+    "sem_prefixo": "Diversos"
+  },
+  "acesso_restrito": {
+    "filiais": [
+      "031801"
+    ],
+    "minutos_sessao": 30
+  },
+  "relatorio_mensal": {
+    "habilitado": true,
+    "quantidade_destaque": 5,
+    "minimo_lancamentos": 5
+  },
+  "televisao": {
+    "rotacao_tabela_segundos": 20
+  },
   "agente_ia": {
     "habilitado": false,
     "provedor": "anthropic",

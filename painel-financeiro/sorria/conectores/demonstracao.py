@@ -1,8 +1,14 @@
 """Conector de DEMONSTRAÇÃO — gera dados 100% fictícios.
 
-Nada aqui vem do TOTVS. Clínicas, fornecedores, profissionais, documentos e
-contas bancárias são inventados. As anomalias inseridas existem apenas para
-ilustrar o layout do painel e não correspondem a regras aprovadas.
+Nada aqui vem do TOTVS. Unidades, fornecedores, profissionais, colaboradores,
+documentos, contas bancárias, números de título e prefixos são inventados. As
+anomalias inseridas existem apenas para ilustrar o layout do painel e não
+correspondem a regras aprovadas.
+
+Como um conector real deve fazer, este conector informa apenas o código da
+filial e o prefixo do título; o nome da filial e a categoria são resolvidos
+na consolidação (cadastro de filiais e tabela de prefixos). Títulos sem
+prefixo caem em "Diversos".
 
 A geração é determinística (semente fixa) e ancorada na data de hoje, para que
 o painel sempre tenha um período recente para exibir.
@@ -18,38 +24,44 @@ from .base import Conector, Lancamento, ResultadoColeta
 
 SEMENTE = 20261020
 
-CLINICAS = [
-    "Unidade Centro", "Unidade Norte", "Unidade Sul",
-    "Unidade Leste", "Unidade Oeste", "Unidade Parque",
-]
+# Códigos fictícios; o escritório usa o código configurado como área restrita.
+FILIAIS = {
+    "900101": "Unidade Centro", "900201": "Unidade Norte", "900301": "Unidade Sul",
+    "900401": "Unidade Leste", "900501": "Unidade Oeste", "900601": "Unidade Parque",
+}
+ESCRITORIO = ("031801", "Escritório (demonstração)")
 
-# categoria -> (faixa de valor em reais, exige nota fiscal, peso de frequência)
-CATEGORIAS = {
-    "Materiais odontológicos": ((350, 4800), True, 6),
-    "Laboratório de prótese": ((600, 7500), True, 5),
-    "Repasse a profissionais": ((1800, 14000), False, 4),
-    "Manutenção de equipamentos": ((250, 6200), True, 2),
-    "Marketing": ((400, 5200), True, 2),
-    "Energia e água": ((700, 3900), False, 2),
-    "Aluguel e condomínio": ((6000, 18000), False, 1),
-    "Serviços de limpeza": ((900, 3200), True, 1),
+# prefixo -> (categoria, faixa de valor em reais, exige nota fiscal, peso de frequência)
+PREFIXOS = {
+    "MAT": ("Materiais odontológicos", (350, 4800), True, 6),
+    "LAB": ("Laboratório de prótese", (600, 7500), True, 5),
+    "RPA": ("Repasse a profissionais", (1800, 14000), False, 4),
+    "MAN": ("Manutenção de equipamentos", (250, 6200), True, 2),
+    "MKT": ("Marketing", (400, 5200), True, 2),
+    "CON": ("Energia e água", (700, 3900), False, 2),
+    "ALU": ("Aluguel e condomínio", (6000, 18000), False, 1),
+    "LIM": ("Serviços de limpeza", (900, 3200), True, 1),
+    "": ("Diversos", (80, 2600), False, 1),  # título sem prefixo no TOTVS
+}
+PREFIXOS_ESCRITORIO = {
+    "FOL": ("Folha de pagamento", (2200, 9800), False),
+    "PJ": ("Prestadores PJ", (3500, 16000), True),
 }
 
 FORNECEDORES = {
-    "Materiais odontológicos": ["Dental Exemplo Ltda", "OdontoSuprimentos Fictícia S.A."],
-    "Laboratório de prótese": ["Laboratório Modelo Ltda", "ProtéticaDemo Ltda"],
-    "Manutenção de equipamentos": ["TecManutenção Exemplo ME"],
-    "Marketing": ["Agência Fictícia Comunicação"],
-    "Energia e água": ["Concessionária Exemplo"],
-    "Aluguel e condomínio": ["Imobiliária Demonstração"],
-    "Serviços de limpeza": ["LimpaBem Fictícia Ltda"],
+    "MAT": ["Dental Exemplo Ltda", "OdontoSuprimentos Fictícia S.A."],
+    "LAB": ["Laboratório Modelo Ltda", "ProtéticaDemo Ltda"],
+    "MAN": ["TecManutenção Exemplo ME"],
+    "MKT": ["Agência Fictícia Comunicação"],
+    "CON": ["Concessionária Exemplo"],
+    "ALU": ["Imobiliária Demonstração"],
+    "LIM": ["LimpaBem Fictícia Ltda"],
+    "": ["Papelaria Exemplo ME", "Cartório Fictício"],
 }
-
-PROFISSIONAIS = [
-    "Dra. Profissional Exemplo A", "Dr. Profissional Exemplo B",
-    "Dra. Profissional Exemplo C", "Dr. Profissional Exemplo D",
-    "Dra. Profissional Exemplo E",
-]
+PROFISSIONAIS = [f"{t} Profissional Exemplo {l}" for t, l in
+                 [("Dra.", "A"), ("Dr.", "B"), ("Dra.", "C"), ("Dr.", "D"), ("Dra.", "E")]]
+COLABORADORES = [f"Colaborador(a) Exemplo {n:02d}" for n in range(1, 9)]
+PRESTADORES_PJ = [f"Prestador PJ Exemplo {l}" for l in "ABCD"]
 
 
 def _cnpj_ficticio(i: int) -> str:
@@ -68,57 +80,67 @@ def _cadastro() -> dict:
     """Cadastro fictício de favorecidos: documento e conta 'oficial'."""
     cadastro = {}
     indice = 1
-    for categoria, nomes in FORNECEDORES.items():
-        for nome in nomes:
-            cadastro[f"F{indice:03d}"] = {
-                "nome": nome, "pessoa_fisica": False, "categoria": categoria,
-                "documento": _cnpj_ficticio(indice), "dados_bancarios": _conta_ficticia(indice),
-            }
-            indice += 1
-    for nome in PROFISSIONAIS:
-        cadastro[f"P{indice:03d}"] = {
-            "nome": nome, "pessoa_fisica": True, "categoria": "Repasse a profissionais",
-            "documento": _cpf_ficticio(indice), "dados_bancarios": _conta_ficticia(indice),
+
+    def incluir(prefixo: str, nome: str, pessoa_fisica: bool):
+        nonlocal indice
+        cadastro[f"F{indice:03d}"] = {
+            "nome": nome, "pessoa_fisica": pessoa_fisica, "prefixo": prefixo,
+            "documento": _cpf_ficticio(indice) if pessoa_fisica else _cnpj_ficticio(indice),
+            "dados_bancarios": _conta_ficticia(indice),
         }
         indice += 1
+
+    for prefixo, nomes in FORNECEDORES.items():
+        for nome in nomes:
+            incluir(prefixo, nome, False)
+    for nome in PROFISSIONAIS:
+        incluir("RPA", nome, True)
+    for nome in COLABORADORES:
+        incluir("FOL", nome, True)
+    for nome in PRESTADORES_PJ:
+        incluir("PJ", nome, False)
     return cadastro
 
 
 def gerar(hoje: date, dias: int = 120) -> ResultadoColeta:
     aleatorio = random.Random(SEMENTE)
     cadastro = _cadastro()
-    por_categoria: dict[str, list[str]] = {}
+    por_prefixo: dict[str, list[str]] = {}
     for codigo, dados in cadastro.items():
-        por_categoria.setdefault(dados["categoria"], []).append(codigo)
+        por_prefixo.setdefault(dados["prefixo"], []).append(codigo)
 
-    nomes_categorias = list(CATEGORIAS)
-    pesos = [CATEGORIAS[c][2] for c in nomes_categorias]
+    prefixos = list(PREFIXOS)
+    pesos = [PREFIXOS[p][3] for p in prefixos]
     lancamentos: list[Lancamento] = []
-    sequencia = 0
+    numero = 45000
 
-    def novo(dia: date, clinica: str, categoria: str, codigo: str) -> Lancamento:
-        nonlocal sequencia
-        sequencia += 1
+    def novo(dia: date, filial: str, prefixo: str, codigo: str, faixa, exige_nf: bool,
+             categoria: str, valor: int | None = None) -> Lancamento:
+        nonlocal numero
+        numero += 1
         favorecido = cadastro[codigo]
-        (minimo, maximo), exige_nf, _ = CATEGORIAS[categoria]
-        valor = aleatorio.randint(minimo * 100, maximo * 100)
+        parcela = aleatorio.choice(["", "", "", "", "", "", "1", "2"])
+        titulo = f"{numero:09d}" + (f"/{parcela}" if parcela else "")
         emissao = dia - timedelta(days=aleatorio.randint(0, 6))
         vencimento = emissao + timedelta(days=aleatorio.choice([10, 15, 20, 28, 30]))
         return Lancamento(
-            referencia=f"DEMO-{dia:%y%m}-{sequencia:05d}",
-            clinica=clinica,
-            categoria=categoria,
+            referencia=f"{filial}|{prefixo}|{numero:09d}|{parcela}",
+            clinica="",      # resolvido pelo cadastro de filiais
+            categoria="",    # resolvida pelo prefixo do título
             data=dia.isoformat(),
-            valor_centavos=valor,
+            valor_centavos=valor if valor is not None else aleatorio.randint(faixa[0] * 100, faixa[1] * 100),
             descricao=f"{categoria} — {favorecido['nome']}" if not favorecido["pessoa_fisica"]
-            else f"{categoria} — repasse de produção",
+            else f"{categoria} — pagamento a pessoa física",
             favorecido=favorecido["nome"],
             pessoa_fisica=favorecido["pessoa_fisica"],
             documento=favorecido["documento"],
             dados_bancarios=favorecido["dados_bancarios"],
+            filial=filial,
+            titulo=titulo,
+            prefixo=prefixo,
             extras={
                 "codigo_favorecido": codigo,
-                "centro_custo": f"CC-{CLINICAS.index(clinica) + 1:02d}",
+                "centro_custo": f"CC-{filial[2:4]}",
                 "numero_nf": f"{aleatorio.randint(1000, 99999)}" if exige_nf else "",
                 "exige_nf": exige_nf,
                 "emissao": emissao.isoformat(),
@@ -132,49 +154,64 @@ def gerar(hoje: date, dias: int = 120) -> ResultadoColeta:
         dia = inicio + timedelta(days=deslocamento)
         if dia.weekday() == 6:  # domingo sem lançamentos
             continue
-        for clinica in CLINICAS:
+        for filial in FILIAIS:
             for _ in range(aleatorio.choice([0, 1, 1, 1, 2, 2])):
-                categoria = aleatorio.choices(nomes_categorias, pesos)[0]
-                codigo = aleatorio.choice(por_categoria[categoria])
-                lancamentos.append(novo(dia, clinica, categoria, codigo))
+                prefixo = aleatorio.choices(prefixos, pesos)[0]
+                categoria, faixa, exige_nf, _peso = PREFIXOS[prefixo]
+                codigo = aleatorio.choice(por_prefixo[prefixo])
+                lancamentos.append(novo(dia, filial, prefixo, codigo, faixa, exige_nf, categoria))
+        # Escritório: folha no 5º dia útil aproximado e PJ no dia 10 de cada mês.
+        if dia.day == 5:
+            for codigo in por_prefixo["FOL"]:
+                categoria, faixa, exige_nf = PREFIXOS_ESCRITORIO["FOL"]
+                salario = 2200_00 + (int(codigo[1:]) * 61_317) % 760_000
+                lancamentos.append(novo(dia, ESCRITORIO[0], "FOL", codigo, faixa, exige_nf, categoria, salario))
+        if dia.day == 10:
+            for codigo in por_prefixo["PJ"]:
+                categoria, faixa, exige_nf = PREFIXOS_ESCRITORIO["PJ"]
+                lancamentos.append(novo(dia, ESCRITORIO[0], "PJ", codigo, faixa, exige_nf, categoria))
 
     # Anomalias ilustrativas (somente para demonstrar o layout).
-    extras_duplicados = []
+    copias = []
     for lanc in lancamentos:
         sorteio = aleatorio.random()
         if sorteio < 0.018:
             copia = Lancamento(**{**lanc.__dict__, "extras": dict(lanc.extras)})
-            sequencia += 1
-            dia = date.fromisoformat(lanc.data) + timedelta(days=aleatorio.randint(0, 2))
-            if dia > hoje:
-                dia = hoje
-            copia.referencia = f"DEMO-{dia:%y%m}-{sequencia:05d}"
+            numero += 1
+            dia = min(date.fromisoformat(lanc.data) + timedelta(days=aleatorio.randint(0, 2)), hoje)
+            copia.referencia = f"{lanc.filial}|{lanc.prefixo}|{numero:09d}|"
+            copia.titulo = f"{numero:09d}"
             copia.data = dia.isoformat()
             if aleatorio.random() < 0.4 and copia.extras["exige_nf"]:
                 copia.extras["numero_nf"] = ""  # duplicidade + NF ausente
-            extras_duplicados.append(copia)
+            copias.append(copia)
         elif sorteio < 0.035 and lanc.extras["exige_nf"]:
             lanc.extras["numero_nf"] = ""
         elif sorteio < 0.047:
             lanc.extras["centro_custo"] = ""
-        elif sorteio < 0.057:
+        elif sorteio < 0.057 and lanc.prefixo != "FOL":
             lanc.valor_centavos = (lanc.valor_centavos or 0) * aleatorio.randint(5, 8)
             if aleatorio.random() < 0.3:
                 lanc.dados_bancarios = _conta_ficticia(3, variante=7)
         elif sorteio < 0.066:
             emissao = date.fromisoformat(lanc.extras["emissao"])
             lanc.extras["vencimento"] = (emissao - timedelta(days=aleatorio.randint(3, 20))).isoformat()
-        elif sorteio < 0.074:
+        elif sorteio < 0.074 or (lanc.prefixo == "FOL" and sorteio < 0.12):
             lanc.dados_bancarios = _conta_ficticia(5, variante=3)
         elif sorteio < 0.079:
             lanc.valor_centavos = None
-    lancamentos.extend(extras_duplicados)
+    lancamentos.extend(copias)
     lancamentos.sort(key=lambda l: (l.data, l.referencia))
 
+    filiais = {codigo: {"nome": nome} for codigo, nome in FILIAIS.items()}
+    filiais[ESCRITORIO[0]] = {"nome": ESCRITORIO[1]}
+    categorias = {p: dados[0] for p, dados in PREFIXOS.items() if p}
+    categorias.update({p: dados[0] for p, dados in PREFIXOS_ESCRITORIO.items()})
     return ResultadoColeta(
         lancamentos=lancamentos,
         simulada=True,
-        referencias={"cadastro_favorecidos": cadastro},
+        referencias={"cadastro_favorecidos": cadastro, "filiais": filiais,
+                     "categorias_por_prefixo": categorias},
         observacao="Dados fictícios gerados localmente para demonstração.",
     )
 

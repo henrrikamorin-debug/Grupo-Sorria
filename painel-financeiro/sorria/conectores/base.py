@@ -14,9 +14,9 @@ from datetime import date
 
 @dataclass
 class Lancamento:
-    referencia: str                 # identificador do lançamento na origem
-    clinica: str
-    categoria: str
+    referencia: str                 # chave única do lançamento na origem
+    clinica: str                    # vazio: preenchido pelo cadastro de filiais
+    categoria: str                  # vazio: definida pelo prefixo do título
     data: str                       # AAAA-MM-DD (data de referência do lançamento)
     valor_centavos: int | None      # None quando a origem não informa valor
     descricao: str = ""
@@ -24,6 +24,9 @@ class Lancamento:
     pessoa_fisica: bool = False     # favorecido é pessoa física (dado pessoal)
     documento: str | None = None    # CPF/CNPJ — dado sensível
     dados_bancarios: str | None = None  # banco/agência/conta — dado sensível
+    filial: str | None = None       # código da filial no TOTVS (ex.: "016501")
+    titulo: str | None = None       # número do título no TOTVS, exibido como referência
+    prefixo: str | None = None      # prefixo do título; define a categoria
     extras: dict = field(default_factory=dict)  # demais campos da origem
 
 

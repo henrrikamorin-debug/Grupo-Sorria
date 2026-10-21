@@ -23,6 +23,9 @@ financeiro.
 | Parar | `scripts\parar.bat` | `./scripts/parar.sh` |
 | Situação das coletas | `py -3 -m sorria situacao` | `python3 -m sorria situacao` |
 | Coleta avulsa (sem servidor) | `py -3 -m sorria coletar` | `python3 -m sorria coletar` |
+| Importar a planilha de filiais | `py -3 -m sorria importar-filiais CONTROLE_FILIAL_TOTVS.xlsx` | `python3 -m sorria importar-filiais CONTROLE_FILIAL_TOTVS.xlsx` |
+| Definir a senha do escritório | `py -3 -m sorria definir-senha` | `python3 -m sorria definir-senha` |
+| Gerar relatório mensal | `py -3 -m sorria relatorio 2026-10` | `python3 -m sorria relatorio 2026-10` |
 
 Também é possível rodar em primeiro plano: `python3 -m sorria iniciar`
 (Ctrl+C encerra). Execute os comandos dentro da pasta `painel-financeiro`.
@@ -54,6 +57,56 @@ Endereços (padrão):
   bem-sucedida, aviso de dados desatualizados, histórico das últimas execuções
   e botões para coleta manual. No modo demonstração há também “Simular falha”,
   para ver como o painel se comporta quando a coleta falha.
+
+### Filiais, número do título e categorias
+
+- **Filiais**: o conector informa só o código TOTVS da filial (ex.: `016501`).
+  O nome exibido vem do cadastro importado da planilha de controle
+  (`importar-filiais`), salvo em `dados/filiais.json`, fora do repositório. A
+  importação avisa sobre CNPJs fora do padrão e filiais sem código TOTVS.
+- **Referência = número do título no TOTVS** (com a parcela, quando houver:
+  `000045731/2`). Internamente o lançamento é identificado por filial + prefixo
+  + número + parcela, porque o mesmo número pode se repetir entre filiais.
+- **Categoria pelo prefixo do título**: título **sem prefixo** no TOTVS entra
+  em **"Diversos"**. A tabela prefixo → categoria fica em
+  `categorias.por_prefixo` no `config.json`; um prefixo ainda não cadastrado
+  aparece como "Prefixo XXX" até ser incluído.
+
+### Área restrita do escritório (senha)
+
+A filial do escritório (`031801`, Clínicas Inteligentes Regional Goiás)
+concentra a folha dos colaboradores e os pagamentos a PJ. Seus lançamentos
+ficam **fora** de indicadores, gráficos, tabela, filtros, exportação CSV,
+relatórios e do agente de IA até alguém digitar a senha no botão
+"ESCRITÓRIO: bloqueado".
+
+- A senha é definida **no computador do serviço**: `python -m sorria
+  definir-senha` (mínimo de 8 caracteres). Só um hash é gravado em
+  `dados/acesso.json`; a senha não aparece em nenhum arquivo nem no chat.
+  Enquanto nenhuma senha for definida, a área fica bloqueada para todos.
+- O desbloqueio vale só para aquele navegador, por 30 minutos
+  (`acesso_restrito.minutos_sessao`), e acaba ao clicar em "Bloquear agora" ou
+  ao reiniciar o serviço. Após 5 senhas erradas, novas tentativas esperam 5 min.
+- O **modo TV nunca mostra** a área restrita, mesmo desbloqueada.
+- Outras filiais restritas podem ser incluídas em `acesso_restrito.filiais`.
+
+### Relatório mensal (filiais com mais dificuldade)
+
+No dia 1º de cada mês, após a primeira coleta bem-sucedida, o serviço gera o
+relatório do mês anterior em `dados/relatorios/<modo>/relatorio-AAAA-MM.html`
+(e `.csv`). Também dá para gerar a qualquer momento em **Relatórios** no
+painel ou pela linha de comando.
+
+- Ranking das filiais pelo **percentual de lançamentos do mês com
+  inconsistência** (empate: pendências, depois número de ocorrências), com
+  comparação com o mês anterior. Filiais com menos de 5 lançamentos no mês
+  ficam fora do ranking e aparecem à parte.
+- Detalhamento das 5 filiais em destaque: regras mais frequentes e a lista de
+  ocorrências (pendentes primeiro), com número do título, para enviar a quem
+  precisa de mais apoio.
+- Nunca inclui a área restrita e omite dados pessoais e bancários.
+- Depende de o computador e o serviço estarem ligados no dia 1º; se não
+  estiverem, é gerado na primeira coleta seguinte.
 
 ### Indicadores
 
@@ -107,6 +160,9 @@ Copie `config.example.json` para `config.json` e ajuste. Principais chaves:
 | `coleta.tempo_maximo_minutos` | `8` | coleta mais longa é descartada |
 | `televisao.rotacao_tabela_segundos` | `20` | troca de página da tabela na TV |
 | `agente_ia.habilitado` | `false` | ver `docs/AGENTE_IA.md` |
+| `categorias.por_prefixo` | `{}` | prefixo do título → categoria; sem prefixo = `Diversos` |
+| `acesso_restrito.filiais` | `["031801"]` | filiais que exigem senha (escritório) |
+| `relatorio_mensal.minimo_lancamentos` | `5` | mínimo para entrar no ranking |
 
 Dados de demonstração e reais ficam em arquivos separados
 (`dados/demonstracao.sqlite3` e `dados/real.sqlite3`); um banco criado em um

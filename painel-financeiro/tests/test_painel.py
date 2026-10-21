@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import logging
+import os
 import tempfile
 import threading
 import unittest
@@ -18,7 +19,7 @@ from pathlib import Path
 from sorria import config as cfg
 from sorria import db
 from sorria.analise import Filtros, FiltroInvalido, montar_painel
-from sorria.coleta import ServicoColeta
+from sorria.coleta import ServicoColeta, _consolidar
 from sorria.conectores.base import Conector, Lancamento, ResultadoColeta
 from sorria.conectores.demonstracao import ConectorDemonstracao
 from sorria.conectores.totvs import ConectorTotvsPendente
@@ -69,12 +70,18 @@ class ConectorFixo(Conector):
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self._dados_antes = os.environ.get("SORRIA_DADOS")
+        os.environ["SORRIA_DADOS"] = self.tmp.name  # senha, cadastros e relatórios do teste
         self.caminho = Path(self.tmp.name) / "teste.sqlite3"
         self.config = copy.deepcopy(cfg.PADRAO)
         self.config["modo"] = "real"
         db.inicializar(self.caminho, "real")
 
     def tearDown(self):
+        if self._dados_antes is None:
+            os.environ.pop("SORRIA_DADOS", None)
+        else:
+            os.environ["SORRIA_DADOS"] = self._dados_antes
         self.tmp.cleanup()
 
     def servico(self, lancamentos, regras=None):
@@ -251,7 +258,9 @@ class TestModos(Base):
     def test_demonstracao_gera_todas_as_regras_e_multiplas_por_lancamento(self):
         resultado = ConectorDemonstracao(hoje=HOJE).coletar(HOJE - timedelta(days=119), HOJE)
         self.assertTrue(resultado.simulada)
-        ocorrencias = analisar(resultado.lancamentos, resultado.referencias, regras_do_modo("demonstracao"))
+        lancamentos = _consolidar(resultado, cfg.PADRAO)
+        self.assertTrue(all(l.clinica and l.categoria for l in lancamentos))
+        ocorrencias = analisar(lancamentos, resultado.referencias, regras_do_modo("demonstracao"))
         codigos = {o["regra_codigo"] for o in ocorrencias}
         self.assertEqual(codigos, {f"DEMO-0{i}" for i in range(1, 8)})
         por_ref = {}
@@ -315,8 +324,8 @@ class TestExportacao(unittest.TestCase):
         self.assertEqual(len(linhas), 4)
         self.assertEqual(linhas[1][0], "DEMONSTRAÇÃO — DADOS FICTÍCIOS")
         self.assertEqual(linhas[1][1], "'=CMD()")
-        self.assertEqual([l[6] for l in linhas[1:]], ["1234,56", "", ""])
-        self.assertEqual(linhas[1][5], "1234,56")
+        self.assertEqual([l[7] for l in linhas[1:]], ["1234,56", "", ""])
+        self.assertEqual(linhas[1][6], "1234,56")
 
 
 class TestServidor(Base):

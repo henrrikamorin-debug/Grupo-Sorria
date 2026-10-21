@@ -53,8 +53,11 @@ class Filtros:
             raise FiltroInvalido(f"situação desconhecida: {filtros.situacao}")
         return filtros
 
-    def sql(self, com_situacao: bool) -> tuple[str, list]:
+    def sql(self, com_situacao: bool, ocultar_filiais=()) -> tuple[str, list]:
         condicoes, valores = [], []
+        condicao_restrita, valores_restritos = sql_ocultar(ocultar_filiais)
+        if condicao_restrita:
+            condicoes.append(condicao_restrita); valores.extend(valores_restritos)
         if self.inicio:
             condicoes.append("data >= ?"); valores.append(self.inicio)
         if self.fim:
@@ -71,10 +74,19 @@ class Filtros:
         return dict(self.__dict__)
 
 
+def sql_ocultar(ocultar_filiais) -> tuple[str, list]:
+    """Condição que remove as filiais restritas (área com senha)."""
+    codigos = sorted(set(ocultar_filiais or ()))
+    if not codigos:
+        return "", []
+    return f"(filial IS NULL OR filial NOT IN ({', '.join('?' * len(codigos))}))", codigos
+
+
 SQL_OCORRENCIAS = """
 SELECT * FROM (
     SELECT o.id, o.referencia, o.regra_codigo, o.regra_nome, o.descricao, o.evidencia,
-           o.clinica, o.categoria, o.data, o.valor_centavos, o.coleta_id,
+           o.clinica, o.categoria, o.data, o.valor_centavos, o.coleta_id, o.filial,
+           COALESCE(o.titulo, o.referencia) AS titulo,
            COALESCE(s.situacao, 'pendente') AS situacao,
            COALESCE(s.primeira_deteccao, o.detectada_em) AS primeira_deteccao,
            s.atualizada_em AS situacao_atualizada_em
@@ -83,8 +95,8 @@ SELECT * FROM (
 """
 
 
-def listar_ocorrencias(conexao, filtros: Filtros, tv: bool = False) -> list[dict]:
-    where, valores = filtros.sql(com_situacao=True)
+def listar_ocorrencias(conexao, filtros: Filtros, tv: bool = False, ocultar_filiais=()) -> list[dict]:
+    where, valores = filtros.sql(com_situacao=True, ocultar_filiais=ocultar_filiais)
     linhas = conexao.execute(
         SQL_OCORRENCIAS + where + " ORDER BY data DESC, clinica, referencia, regra_codigo", valores
     ).fetchall()
@@ -151,10 +163,14 @@ def _serie_periodo(ocorrencias: list[dict], inicio: date, fim: date) -> dict:
     return {"granularidade": granularidade, "serie": serie}
 
 
-def opcoes(conexao) -> dict:
-    clinicas = [r[0] for r in conexao.execute("SELECT DISTINCT clinica FROM lancamentos ORDER BY clinica")]
-    categorias = [r[0] for r in conexao.execute("SELECT DISTINCT categoria FROM lancamentos ORDER BY categoria")]
-    limites = conexao.execute("SELECT MIN(data), MAX(data) FROM lancamentos").fetchone()
+def opcoes(conexao, ocultar_filiais=()) -> dict:
+    condicao, valores = sql_ocultar(ocultar_filiais)
+    where = f" WHERE {condicao}" if condicao else ""
+    clinicas = [r[0] for r in conexao.execute(
+        f"SELECT DISTINCT clinica FROM lancamentos{where} ORDER BY clinica", valores)]
+    categorias = [r[0] for r in conexao.execute(
+        f"SELECT DISTINCT categoria FROM lancamentos{where} ORDER BY categoria", valores)]
+    limites = conexao.execute(f"SELECT MIN(data), MAX(data) FROM lancamentos{where}", valores).fetchone()
     return {
         "clinicas": clinicas,
         "categorias": categorias,
@@ -163,17 +179,17 @@ def opcoes(conexao) -> dict:
     }
 
 
-def montar_painel(conexao, filtros: Filtros, tv: bool = False) -> dict:
-    where, valores = filtros.sql(com_situacao=False)
+def montar_painel(conexao, filtros: Filtros, tv: bool = False, ocultar_filiais=()) -> dict:
+    where, valores = filtros.sql(com_situacao=False, ocultar_filiais=ocultar_filiais)
     registros = conexao.execute("SELECT COUNT(*) FROM lancamentos" + where, valores).fetchone()[0]
-    ocorrencias = listar_ocorrencias(conexao, filtros, tv=tv)
+    ocorrencias = listar_ocorrencias(conexao, filtros, tv=tv, ocultar_filiais=ocultar_filiais)
     soma, afetados = _soma_unica(ocorrencias)
     sem_valor = len({o["referencia"] for o in ocorrencias if o["valor_centavos"] is None})
     contagem = {s: 0 for s in SITUACOES}
     for o in ocorrencias:
         contagem[o["situacao"]] += 1
 
-    disponiveis = opcoes(conexao)
+    disponiveis = opcoes(conexao, ocultar_filiais)
     periodo = disponiveis["periodo_disponivel"]
     inicio = filtros.inicio or periodo["inicio"]
     fim = filtros.fim or periodo["fim"]

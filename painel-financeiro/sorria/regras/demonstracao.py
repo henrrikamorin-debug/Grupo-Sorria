@@ -14,10 +14,15 @@ from ..conectores.base import Lancamento
 from .base import Achado, ItemEvidencia, Regra, formatar_data, formatar_reais
 
 
+def _titulo(l: Lancamento) -> str:
+    return l.titulo or l.referencia
+
+
 def _itens_basicos(l: Lancamento) -> list[ItemEvidencia]:
     return [
-        ItemEvidencia("Referência", l.referencia),
-        ItemEvidencia("Clínica", l.clinica),
+        ItemEvidencia("Nº do título", _titulo(l)),
+        ItemEvidencia("Prefixo", l.prefixo or "sem prefixo (Diversos)"),
+        ItemEvidencia("Filial", f"{l.clinica} ({l.filial})" if l.filial else l.clinica),
         ItemEvidencia("Categoria", l.categoria),
         ItemEvidencia("Data", formatar_data(l.data)),
         ItemEvidencia("Valor", formatar_reais(l.valor_centavos)),
@@ -42,16 +47,16 @@ def _duplicidade(lancamentos: list[Lancamento], _ref: dict) -> list[Achado]:
             if distancia <= 3:
                 achados.append(Achado(
                     referencia=atual.referencia,
-                    descricao=f"Mesmo favorecido e valor de {anterior.referencia}, "
+                    descricao=f"Mesmo favorecido e valor do título {_titulo(anterior)}, "
                               + ("no mesmo dia" if distancia == 0 else f"{distancia} dia(s) depois"),
                     resumo_evidencia="Dois lançamentos com favorecido e valor idênticos em até 3 dias.",
                     itens=_itens_basicos(atual) + [
-                        ItemEvidencia("Lançamento semelhante", anterior.referencia),
+                        ItemEvidencia("Título semelhante", _titulo(anterior)),
                         ItemEvidencia("Data do semelhante", formatar_data(anterior.data)),
                         ItemEvidencia("Valor do semelhante", formatar_reais(anterior.valor_centavos)),
                         ItemEvidencia("Diferença de dias", str(distancia)),
                     ],
-                    relacionados=[anterior.referencia],
+                    relacionados=[_titulo(anterior)],
                 ))
     return achados
 
@@ -80,7 +85,7 @@ def _valor_atipico(lancamentos: list[Lancamento], _ref: dict) -> list[Achado]:
         if mediana and l.valor_centavos is not None and l.valor_centavos > 4 * mediana:
             achados.append(Achado(
                 referencia=l.referencia,
-                descricao=f"Valor {l.valor_centavos / mediana:.1f}× a mediana da categoria",
+                descricao=f"Valor {l.valor_centavos / mediana:.1f}× a mediana da categoria".replace(".", ","),
                 resumo_evidencia="Valor acima de 4 vezes a mediana da categoria no período coletado.",
                 itens=_itens_basicos(l) + [
                     ItemEvidencia("Mediana da categoria", formatar_reais(int(mediana))),

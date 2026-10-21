@@ -20,6 +20,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import db
+from .cadastros import carregar_filiais, classificar_categoria
 from .conectores.base import Conector, ConectorNaoConfigurado, Lancamento, ResultadoColeta
 from .regras import analisar
 from .regras.base import Regra
@@ -30,8 +31,11 @@ HISTORICO_MAXIMO = 5000
 
 
 class ServicoColeta:
-    def __init__(self, config: dict, caminho_banco: Path, conector: Conector, regras: list[Regra]):
+    def __init__(self, config: dict, caminho_banco: Path, conector: Conector, regras: list[Regra],
+                 caminho_filiais: Path | None = None):
         self.config = config
+        self.caminho_filiais = caminho_filiais
+        self.ao_concluir: list = []  # funções chamadas após cada coleta bem-sucedida
         self.caminho_banco = caminho_banco
         self.conector = conector
         self.regras = regras
@@ -134,7 +138,8 @@ class ServicoColeta:
             hoje = date.today()
             janela = int(self.config["coleta"]["janela_dias"])
             resultado = self.conector.coletar(hoje - timedelta(days=janela - 1), hoje)
-            lancamentos = _consolidar(resultado)
+            filiais = carregar_filiais(self.caminho_filiais) if self.caminho_filiais else {}
+            lancamentos = _consolidar(resultado, self.config, filiais)
             if not lancamentos and not self.config["coleta"]["aceitar_coleta_vazia"]:
                 anteriores = conexao.execute("SELECT COUNT(*) FROM lancamentos").fetchone()[0]
                 if anteriores:
@@ -156,6 +161,11 @@ class ServicoColeta:
             return {"situacao": "falha", "coleta_id": coleta_id, "mensagem": str(erro)}
         log.info("Coleta %s (nº %s) concluída: %d registros, %d ocorrências%s.", origem, coleta_id,
                  len(lancamentos), len(ocorrencias), " [SIMULADA]" if resultado.simulada else "")
+        for funcao in self.ao_concluir:
+            try:
+                funcao()
+            except Exception:  # noqa: BLE001 — uma tarefa posterior não invalida a coleta
+                log.exception("Tarefa após a coleta nº %s falhou.", coleta_id)
         return {"situacao": "sucesso", "coleta_id": coleta_id, "registros": len(lancamentos),
                 "ocorrencias": len(ocorrencias), "simulada": resultado.simulada}
 
@@ -168,19 +178,19 @@ class ServicoColeta:
             conexao.execute("DELETE FROM lancamentos")
             conexao.executemany(
                 "INSERT INTO lancamentos (referencia, clinica, categoria, data, valor_centavos, descricao, "
-                "favorecido, pessoa_fisica, documento, dados_bancarios, extras, coleta_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "favorecido, pessoa_fisica, documento, dados_bancarios, filial, titulo, prefixo, extras, "
+                "coleta_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(l.referencia, l.clinica, l.categoria, l.data, l.valor_centavos, l.descricao,
                   l.favorecido, int(l.pessoa_fisica), l.documento, l.dados_bancarios,
-                  db.json_dump(l.extras), coleta_id) for l in lancamentos],
+                  l.filial, l.titulo, l.prefixo, db.json_dump(l.extras), coleta_id) for l in lancamentos],
             )
             conexao.executemany(
                 "INSERT INTO ocorrencias (id, referencia, regra_codigo, regra_nome, descricao, evidencia, "
-                "clinica, categoria, data, valor_centavos, detectada_em, coleta_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "clinica, categoria, data, valor_centavos, filial, titulo, detectada_em, coleta_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(o["id"], o["referencia"], o["regra_codigo"], o["regra_nome"], o["descricao"],
                   db.json_dump(o["evidencia"]), o["clinica"], o["categoria"], o["data"],
-                  o["valor_centavos"], agora, coleta_id) for o in ocorrencias],
+                  o["valor_centavos"], o["filial"], o["titulo"], agora, coleta_id) for o in ocorrencias],
             )
             conexao.executemany(
                 "INSERT OR IGNORE INTO situacao_ocorrencias (id, situacao, primeira_deteccao, atualizada_em) "
@@ -203,10 +213,24 @@ def _mensagem(erro: Exception) -> str:
     return f"{type(erro).__name__}: {erro}"
 
 
-def _consolidar(resultado: ResultadoColeta) -> list[Lancamento]:
-    """Valida o mínimo necessário e remove referências repetidas da origem."""
+def _consolidar(resultado: ResultadoColeta, config: dict | None = None,
+                filiais: dict | None = None) -> list[Lancamento]:
+    """Completa clínica e categoria, valida o mínimo e remove referências repetidas.
+
+    * Clínica vazia: nome da filial no cadastro (ou "Filial <código>").
+    * Categoria vazia: definida pelo prefixo do título; sem prefixo = "Diversos".
+    """
+    config_categorias = (config or {}).get("categorias", {})
+    mapa = {**resultado.referencias.get("categorias_por_prefixo", {}),
+            **config_categorias.get("por_prefixo", {})}
+    sem_prefixo = config_categorias.get("sem_prefixo", "Diversos")
+    filiais = {**resultado.referencias.get("filiais", {}), **(filiais or {})}
     unicos: dict[str, Lancamento] = {}
     for l in resultado.lancamentos:
+        if not l.clinica and l.filial:
+            l.clinica = filiais.get(l.filial, {}).get("nome") or f"Filial {l.filial}"
+        if not l.categoria:
+            l.categoria = classificar_categoria(l.prefixo, mapa, sem_prefixo)
         if not l.referencia or not l.clinica or not l.categoria:
             raise ValueError(f"Lançamento incompleto recebido da origem: {l.referencia!r}")
         date.fromisoformat(l.data)  # levanta ValueError se a data for inválida

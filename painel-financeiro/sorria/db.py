@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS lancamentos (
     pessoa_fisica INTEGER NOT NULL DEFAULT 0,
     documento TEXT,
     dados_bancarios TEXT,
+    filial TEXT,
+    titulo TEXT,
+    prefixo TEXT,
     extras TEXT NOT NULL DEFAULT '{}',
     coleta_id INTEGER NOT NULL
 );
@@ -65,6 +68,8 @@ CREATE TABLE IF NOT EXISTS ocorrencias (
     categoria TEXT NOT NULL,
     data TEXT NOT NULL,
     valor_centavos INTEGER,
+    filial TEXT,
+    titulo TEXT,
     detectada_em TEXT NOT NULL,
     coleta_id INTEGER NOT NULL,
     UNIQUE (referencia, regra_codigo)
@@ -134,6 +139,7 @@ def inicializar(caminho: Path, modo: str) -> None:
     """
     with fechando(conectar(caminho)) as conexao:
         conexao.executescript(ESQUEMA)
+        _migrar(conexao)
         linha = conexao.execute("SELECT valor FROM meta WHERE chave = 'modo'").fetchone()
         if linha is None:
             conexao.execute("INSERT INTO meta (chave, valor) VALUES ('modo', ?)", (modo,))
@@ -142,6 +148,20 @@ def inicializar(caminho: Path, modo: str) -> None:
                 f"O banco {caminho} pertence ao modo {linha['valor']!r}, "
                 f"mas o sistema está configurado para {modo!r}."
             )
+
+
+# Colunas acrescentadas depois da primeira versão: (tabela, coluna, tipo).
+MIGRACOES = [
+    ("lancamentos", "filial", "TEXT"), ("lancamentos", "titulo", "TEXT"), ("lancamentos", "prefixo", "TEXT"),
+    ("ocorrencias", "filial", "TEXT"), ("ocorrencias", "titulo", "TEXT"),
+]
+
+
+def _migrar(conexao: sqlite3.Connection) -> None:
+    for tabela, coluna, tipo in MIGRACOES:
+        existentes = {linha["name"] for linha in conexao.execute(f"PRAGMA table_info({tabela})")}
+        if coluna not in existentes:
+            conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
 
 
 @contextmanager

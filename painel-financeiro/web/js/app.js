@@ -135,7 +135,10 @@ function renderizar() {
   document.title = (d.modo === "real" ? "" : "[DEMONSTRAÇÃO] ") + "Painel Financeiro — Grupo Sorria";
   renderizarIntegracao(d.situacao);
   renderizarOpcoes(d.opcoes);
-  $("resumo-filtros").textContent = "";
+  renderizarAcesso(d.acesso);
+  $("resumo-filtros").textContent = d.acesso?.desbloqueado && !estado.tv
+    ? `Área restrita liberada até ${new Date(d.acesso.expira_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+    : "";
   $("resumo-tv").textContent = descricaoFiltros();
 
   const semColeta = !d.situacao.ultima_coleta_sucesso;
@@ -288,7 +291,7 @@ function desenharTabela(linhasPorPagina) {
     return `<tr class="linha" tabindex="0" data-id="${esc(o.id)}">
       <td class="data num">${dataCurta(o.data)}</td>
       <td>${esc(o.clinica)}</td>
-      <td class="ref num">${esc(o.referencia)}</td>
+      <td class="ref num">${esc(o.titulo || o.referencia)}</td>
       <td class="regra"><span class="codigo">${esc(o.regra_codigo)}</span>${esc(o.regra_nome)}</td>
       <td class="descricao">${esc(o.descricao)}</td>
       <td class="valor num">${reais(o.valor_centavos)}${repetido}</td>
@@ -342,7 +345,8 @@ function abrirOcorrencia(id) {
     ${aviso}
     <dl>
       <dt>Descrição</dt><dd>${esc(o.descricao)}</dd>
-      <dt>Lançamento</dt><dd class="num">${esc(o.referencia)}</dd>
+      <dt>Nº do título</dt><dd class="num">${esc(o.titulo || o.referencia)}</dd>
+      <dt>Filial TOTVS</dt><dd class="num">${esc(o.filial || "—")}</dd>
       <dt>Data</dt><dd class="num">${dataCurta(o.data)}</dd>
       <dt>Valor</dt><dd class="num">${reais(o.valor_centavos)}</dd>
       <dt>Situação</dt><dd><span class="situacao ${esc(o.situacao)}">${esc(o.situacao_rotulo)}</span></dd>
@@ -425,6 +429,99 @@ function abrirIntegracao() {
   };
   $("btn-coletar").addEventListener("click", () => executar(false));
   $("btn-falha")?.addEventListener("click", () => executar(true));
+}
+
+// ------------------------------------------------------------------ área restrita
+function renderizarAcesso(acesso) {
+  const botao = $("btn-acesso");
+  if (!acesso || !acesso.filiais.length) { botao.classList.add("oculto"); return; }
+  const nome = acesso.nomes.length === 1 ? acesso.nomes[0].replace(/\s*\(.*\)$/, "") : "Área restrita";
+  botao.classList.remove("oculto");
+  botao.dataset.estado = acesso.desbloqueado ? "liberado" : "bloqueado";
+  botao.textContent = `${nome}: ${acesso.desbloqueado ? "liberado" : "bloqueado"}`;
+}
+
+function abrirAcesso() {
+  const a = estado.dados?.acesso;
+  if (!a) return;
+  const nomes = a.nomes.length ? a.nomes.join(", ") : a.filiais.join(", ");
+  if (a.desbloqueado) {
+    abrirGaveta("Área restrita", "Acesso liberado", `
+      <p class="nota">Os dados de <b>${esc(nomes)}</b> (folha dos colaboradores e pagamentos a PJ) estão visíveis neste navegador até
+      <b>${horaLocal(a.expira_em)}</b>. O modo TV nunca mostra esses dados.</p>
+      <div class="acoes-situacao"><button class="botao primario" type="button" id="btn-bloquear">Bloquear agora</button></div>
+      <div class="atualizando" id="acesso-msg"></div>`);
+    $("btn-bloquear").addEventListener("click", async () => {
+      try { await postar("/api/acesso/bloquear", {}); fecharGaveta(); carregar({ silencioso: true }); }
+      catch (erro) { $("acesso-msg").textContent = `Não foi possível bloquear: ${erro.message}`; }
+    });
+    return;
+  }
+  abrirGaveta("Área restrita", `${nomes}: bloqueado`, `
+    <p class="nota">Os lançamentos de <b>${esc(nomes)}</b> concentram a folha dos colaboradores e os pagamentos a PJ.
+    Eles ficam fora dos indicadores, gráficos, tabela, exportação e relatórios até a senha ser digitada.</p>
+    ${a.senha_definida ? `
+    <form class="formulario" id="form-acesso">
+      <div class="campo"><label for="senha-acesso">Senha</label>
+        <input type="password" id="senha-acesso" autocomplete="current-password" required></div>
+      <button class="botao primario" type="submit">Liberar</button>
+    </form>` : `<div class="aviso-regra">Nenhuma senha foi definida ainda. No computador do serviço, execute
+      <b>python -m sorria definir-senha</b> (Windows: <b>py -3 -m sorria definir-senha</b>).</div>`}
+    <div class="atualizando" id="acesso-msg"></div>`);
+  $("form-acesso")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const campo = $("senha-acesso");
+    try {
+      await postar("/api/acesso/desbloquear", { senha: campo.value });
+      campo.value = "";
+      fecharGaveta();
+      carregar({ silencioso: true });
+    } catch (erro) {
+      campo.value = "";
+      $("acesso-msg").textContent = erro.message;
+    }
+  });
+  $("senha-acesso")?.focus();
+}
+
+// ------------------------------------------------------------------ relatórios
+async function abrirRelatorios() {
+  abrirGaveta("Relatório mensal", "Filiais com mais dificuldade", `<div class="estado carregando"><strong>Carregando</strong></div>`);
+  let dados;
+  try {
+    dados = await (await fetch("/api/relatorios", { cache: "no-store" })).json();
+  } catch {
+    $("gaveta-corpo").innerHTML = `<div class="estado falha"><strong>Não foi possível listar os relatórios</strong>Verifique se o serviço está ligado.</div>`;
+    return;
+  }
+  const itens = dados.relatorios.map((r) => `<div class="item"><span><b>${esc(r.nome)}</b><br>
+      <span class="atualizando">gerado em ${horaLocal(r.gerado_em)}</span></span>
+      <span><a href="/relatorios/relatorio-${esc(r.mes)}.html" target="_blank" rel="noopener">Abrir relatório</a>
+      ${r.csv ? ` · <a href="/relatorios/relatorio-${esc(r.mes)}.csv">Planilha CSV</a>` : ""}</span></div>`).join("");
+  $("gaveta-corpo").innerHTML = `
+    ${estado.dados?.modo === "real" ? "" : `<div class="aviso-regra">Modo demonstração: os relatórios usam dados fictícios.</div>`}
+    <p class="nota">Ranking das filiais pelo percentual de lançamentos do mês com inconsistência, com o detalhamento das que
+    estão em destaque, para enviar a quem precisa de mais apoio. ${dados.automatico
+      ? "É gerado automaticamente no dia 1º de cada mês, sobre o mês anterior, enquanto o serviço estiver ligado." : "A geração automática está desligada."}
+    A área restrita (escritório) nunca entra no relatório, e dados pessoais e bancários são omitidos.</p>
+    <div class="lista-relatorios">${itens || `<div class="estado"><strong>Nenhum relatório gerado ainda</strong></div>`}</div>
+    <div class="so-normal"><h4>Gerar agora</h4>
+      <form class="formulario" id="form-relatorio">
+        <div class="campo"><label for="mes-relatorio">Mês</label>
+          <input type="month" id="mes-relatorio" value="${esc(dados.mes_anterior)}" required></div>
+        <button class="botao primario" type="submit">Gerar relatório</button>
+      </form><div class="atualizando" id="relatorio-msg"></div></div>`;
+  $("form-relatorio").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("relatorio-msg").textContent = "Gerando…";
+    try {
+      const r = await postar("/api/relatorios", { mes: $("mes-relatorio").value });
+      await abrirRelatorios();
+      $("relatorio-msg").textContent = `Relatório de ${r.mes} gerado: ${r.ocorrencias} ocorrência(s).`;
+    } catch (erro) {
+      $("relatorio-msg").textContent = `Não foi possível gerar: ${erro.message}`;
+    }
+  });
 }
 
 // ------------------------------------------------------------------ filtros e modos
@@ -516,6 +613,8 @@ function ligarEventos() {
   $("btn-anterior").addEventListener("click", () => { estado.pagina--; renderizarTabela(); });
   $("btn-proxima").addEventListener("click", () => { estado.pagina++; renderizarTabela(); });
   $("integracao").addEventListener("click", abrirIntegracao);
+  $("btn-acesso").addEventListener("click", abrirAcesso);
+  $("btn-relatorios").addEventListener("click", abrirRelatorios);
   $("gaveta-fechar").addEventListener("click", fecharGaveta);
   $("fundo-modal").addEventListener("click", fecharGaveta);
   document.addEventListener("keydown", (e) => {

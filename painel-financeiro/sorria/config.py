@@ -48,6 +48,27 @@ PADRAO: dict = {
         # Ainda não definido: depende do produto TOTVS e da forma de acesso.
         "conector": "nao_configurado",
     },
+    "categorias": {
+        # Prefixo do título no TOTVS -> categoria exibida no painel.
+        # Ex.: {"MAT": "Materiais odontológicos", "LAB": "Laboratório de prótese"}
+        "por_prefixo": {},
+        # Título sem prefixo no TOTVS.
+        "sem_prefixo": "Diversos",
+    },
+    "acesso_restrito": {
+        # Filiais cujos dados só aparecem após digitar a senha (ex.: o escritório,
+        # que concentra a folha dos colaboradores e os pagamentos a PJ).
+        # A senha é definida no computador do serviço: python -m sorria definir-senha
+        "filiais": ["031801"],
+        "minutos_sessao": 30,
+    },
+    "relatorio_mensal": {
+        # Gerado automaticamente no 1º dia de cada mês, sobre o mês anterior.
+        "habilitado": True,
+        "quantidade_destaque": 5,
+        # Filiais com menos lançamentos no mês não entram no ranking de dificuldade.
+        "minimo_lancamentos": 5,
+    },
     "televisao": {
         # A quantidade de linhas por página na TV é calculada pela altura da tela.
         "rotacao_tabela_segundos": 20,
@@ -102,5 +123,22 @@ def validar(config: dict) -> None:
 
 def caminho_banco(config: dict) -> Path:
     """Cada modo tem seu próprio arquivo: dados fictícios e reais nunca se misturam."""
-    pasta = Path(os.environ.get("SORRIA_DADOS", RAIZ / "dados"))
-    return pasta / f"{config['modo']}.sqlite3"
+    return pasta_dados() / f"{config['modo']}.sqlite3"
+
+
+def pasta_dados() -> Path:
+    return Path(os.environ.get("SORRIA_DADOS", RAIZ / "dados"))
+
+
+def caminho_filiais() -> Path:
+    """Cadastro de filiais importado da planilha (fora do repositório)."""
+    return pasta_dados() / "filiais.json"
+
+
+def caminho_senha() -> Path:
+    """Hash da senha da área restrita (a senha em si nunca é gravada)."""
+    return pasta_dados() / "acesso.json"
+
+
+def pasta_relatorios(config: dict) -> Path:
+    return pasta_dados() / "relatorios" / config["modo"]

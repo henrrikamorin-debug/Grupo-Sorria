@@ -154,6 +154,16 @@ html.tv .integracao { cursor: none; }
 }
 .botao.primario { border-color: var(--dourado); color: var(--dourado); }
 .botao[disabled] { opacity: 0.5; cursor: default; }
+#btn-acesso[data-estado="liberado"] { border-color: var(--atencao); color: var(--atencao); }
+.formulario { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end; }
+.formulario .campo { min-width: 14rem; }
+.lista-relatorios { display: flex; flex-direction: column; gap: 0.5rem; }
+.lista-relatorios .item {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  background: var(--superficie-2); border-radius: 8px; padding: 0.6rem 0.8rem;
+}
+.lista-relatorios a { color: var(--dourado); }
+.aviso-restrito { color: var(--atencao); font-size: 0.85rem; align-self: center; }
 
 /* ------------------------------------------------------------ filtros */
 .filtros { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end; padding: 0.75rem 1rem; }

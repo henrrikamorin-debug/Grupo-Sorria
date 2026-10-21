@@ -27,10 +27,15 @@ db.inicializar(caminho, config["modo"])
 servico = ServicoColeta(config, caminho, criar_conector(config), regras_do_modo(config["modo"]))
 servico.executar("inicial")
 with db.fechando(db.conectar(caminho)) as cx:
-    normal = montar_painel(cx, Filtros())
-    tv = montar_painel(cx, Filtros(), tv=True)
+    # A prévia não tem senha: a área restrita (escritório) fica sempre de fora.
+    restritas = config["acesso_restrito"]["filiais"]
+    normal = montar_painel(cx, Filtros(), ocultar_filiais=restritas)
+    tv = montar_painel(cx, Filtros(), tv=True, ocultar_filiais=restritas)
     situacao = montar_situacao(cx, config, servico)
-    lanc = [list(r) for r in cx.execute("SELECT clinica, categoria, data FROM lancamentos")]
+    lanc = [list(r) for r in cx.execute(
+        f"SELECT clinica, categoria, data FROM lancamentos WHERE filial IS NULL OR filial NOT IN "
+        f"({', '.join('?' * len(restritas))})", restritas)] if restritas else [
+        list(r) for r in cx.execute("SELECT clinica, categoria, data FROM lancamentos")]
 situacao["historico"] = situacao["historico"][:1]
 dados = {"normal": normal["ocorrencias"], "tv": tv["ocorrencias"], "opcoes": normal["opcoes"],
          "lancamentos": lanc, "situacao": situacao, "televisao": config["televisao"]}
@@ -55,7 +60,8 @@ if len(sys.argv) > 4 and sys.argv[4] == "publicar":
 mock = (Path(sys.argv[3])).read_text().replace("__DADOS__", json.dumps(dados, ensure_ascii=False))
 html = (web / "index.html").read_text()
 html = html.replace('<link rel="stylesheet" href="/static/css/painel.css">',
-                    "<style>\n" + (web / "css" / "painel.css").read_text() + "\n</style>")
+                    "<style>\n" + (web / "css" / "painel.css").read_text()
+                    + "\n#btn-acesso, #btn-relatorios { display: none !important; }\n</style>")
 html = html.replace('<script type="module" src="/static/js/app.js"></script>', "")
 html = html.replace("<small>Nenhum dado vem do TOTVS · ocorrências e regras são apenas ilustrativas</small>",
                     "<small>PRÉVIA ESTÁTICA · nenhum dado vem do TOTVS · ocorrências e regras são apenas ilustrativas</small>")

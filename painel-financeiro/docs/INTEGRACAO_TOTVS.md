@@ -21,7 +21,11 @@ mostra isso no painel.
      tela).
 4. **Telas, filtros e períodos** usados na conferência; clínicas (filiais/
    empresas) e como cada uma é identificada.
-5. **Campos** necessários para cada regra (ver `docs/REGRAS.md`).
+5. **Campos** necessários para cada regra (ver `docs/REGRAS.md`). Já
+   definidos pelo financeiro: **filial** (código TOTVS, ex.: `016501`),
+   **prefixo**, **número**, **parcela** e tipo do título. O número do título é
+   a referência exibida; o prefixo define a categoria (sem prefixo =
+   "Diversos").
 6. Volume aproximado de lançamentos por mês e por clínica.
 
 ## Requisitos para qualquer conector

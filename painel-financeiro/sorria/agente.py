@@ -72,7 +72,9 @@ class AgenteFinanceiro:
 
     def contexto(self, conexao, filtros: Filtros) -> dict:
         """Dados mínimos para o agente: agregados e ocorrências mascaradas, sem evidências."""
-        painel = montar_painel(conexao, filtros, tv=True)
+        # O agente nunca recebe a área restrita (escritório: folha e PJ).
+        painel = montar_painel(conexao, filtros, tv=True,
+                               ocultar_filiais=self.config["acesso_restrito"]["filiais"])
         limite = int(self.cfg["max_ocorrencias_contexto"])
         return {
             "modo": self.config["modo"],
