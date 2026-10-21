@@ -37,13 +37,18 @@ Endereços (padrão):
 
 ## Agente TOTVS (Contas a Pagar)
 
-O modo real é alimentado pelo **agente TOTVS**: a exportação SE2 da Consulta
-Genérica (Vencimento = Mês Atual, Exp. CSV) é validada, importada sem
-duplicar e exibida no painel com período, origem, última coleta válida,
-pendências e conferência de totais. Veja `docs/AGENTE_TOTVS.md`.
+O modo real é alimentado pelo **agente TOTVS**, que opera o TOTVS WebApp no
+Chrome dedicado (Consulta Genérica › SE2 › Vencimento = Mês Atual › Exp. CSV),
+captura o download, valida, importa sem duplicar e confere o painel. Só
+consulta e exporta. Veja `docs/AGENTE_TOTVS.md`.
 
+> Testado contra um simulador local das telas; a coleta no TOTVS real ainda
+> precisa ser executada e calibrada no computador do financeiro.
+
+- Instalar o controle do Chrome: `scripts\instalar-navegador.bat`
+- Abrir o Chrome do agente e entrar no TOTVS: `scripts\abrir-totvs.bat`
 - Conferir: `py -3 -m sorria agente verificar`
-- Executar e aguardar a exportação: `scripts\agente.bat`, ou pelo Claude Code: `/coletar-totvs`
+- Coletar agora: `scripts\agente.bat` (calibração: `scripts\agente.bat --diagnostico`)
 - Importar um arquivo já exportado: `py -3 -m sorria agente importar arquivo.csv`
 - Conta proprietária da área restrita: `py -3 -m sorria definir-proprietario`
 

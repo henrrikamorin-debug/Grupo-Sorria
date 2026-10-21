@@ -192,7 +192,8 @@ function renderizarSemColeta(s) {
 function renderizarIntegracao(s) {
   const integ = $("integracao");
   integ.dataset.nivel = s.nivel;
-  $("integracao-titulo").textContent = s.titulo + (s.coleta_em_andamento ? " · coletando…" : "");
+  $("integracao-titulo").textContent = s.acao_necessaria ? "Ação necessária: entrar no TOTVS"
+    : s.titulo + (s.coleta_em_andamento ? " · coletando…" : "");
   const sucesso = s.ultima_coleta_sucesso;
   const rotulo = s.demonstracao ? "Última coleta simulada" : "Última coleta válida";
   const periodo = s.importacao ? ` · venc. ${dataCurta(s.importacao.periodo_inicio).slice(3)}` : "";
@@ -421,7 +422,15 @@ function abrirIntegracaoSe2(s) {
   const i = s.importacao;
   const c = s.conferencia;
   const etapas = { aguardando_exportacao: "aguardando a exportação", importando: "importando", atualizando_painel: "atualizando o painel",
-    concluida: "concluída", iniciando: "iniciando", trava: "outra execução em andamento" };
+    concluida: "concluída", iniciando: "iniciando", trava: "outra execução em andamento",
+    aguardando_login: "aguardando login no TOTVS", exportacao_capturada: "exportação capturada",
+    "navegador:conectar": "abrindo o Chrome do agente", "navegador:sessao": "conferindo a sessão do TOTVS",
+    "navegador:recuperar": "voltando ao menu", "navegador:abrir_rotina": "abrindo a Consulta Genérica",
+    "navegador:selecionar_tabela": "selecionando SE2 — Contas a Pagar", "navegador:filtro": "aplicando Vencimento = Mês Atual",
+    "navegador:conferir_filtros": "conferindo filtros", "navegador:exportar": "exportando (Exp. CSV)",
+    abrir_rotina: "abrir a Consulta Genérica", selecionar_tabela: "selecionar SE2", filtro: "filtro Vencimento",
+    conferir_filtros: "conferir filtros", exportar: "exportar", sessao: "sessão do TOTVS", navegador: "Chrome do agente",
+    configuracao: "configuração", tempo_maximo: "tempo máximo" };
   const situacoes = { sucesso: "Sucesso", falha: "Falha", sem_arquivo: "Sem exportação nova", bloqueada: "Bloqueada",
     interrompida: "Interrompida", em_andamento: "Em andamento" };
   const linhas = (s.execucoes_agente || []).map((e) => `<tr>
@@ -431,6 +440,7 @@ function abrirIntegracaoSe2(s) {
       <td>${esc(e.mensagem || "")}</td></tr>`).join("");
   const agenda = s.agendamento || {};
   abrirGaveta("Situação da integração", s.titulo, `
+    ${s.acao_necessaria ? `<p class="acao-necessaria">${esc(s.acao_necessaria)}</p>` : ""}
     <dl>
       <dt>Origem dos dados</dt><dd>${esc(s.origem)}</dd>
       <dt>Período consultado</dt><dd class="num">${i ? `Vencimento de ${dataCurta(i.periodo_inicio)} a ${dataCurta(i.periodo_fim)}` : "—"}</dd>
@@ -441,6 +451,10 @@ function abrirIntegracaoSe2(s) {
       <dt>Agendamento</dt><dd>${agenda.ativo && (agenda.horarios || []).length ? `ativo: ${agenda.horarios.map(esc).join(", ")}` : "não ativado (horários ainda não definidos)"}</dd>
     </dl>
     ${i ? `<div><h4>Pendências e divergências</h4><dl>
+      <dt>Completa?</dt><dd>${i.completa == null ? "não verificada" : i.completa ? "Sim — filtro, abrangência e linhas conferidos" : "Não confirmada"}</dd>
+      ${(i.pendencias || []).length ? `<dt>Pendências</dt><dd>${i.pendencias.map((p) => esc(p.texto) + (p.bloqueia ? "" : " (informativo)")).join("<br>")}</dd>` : ""}
+      ${i.escopo ? `<dt>Filtro conferido na tela</dt><dd>${esc(i.escopo.filtro || "")}${i.escopo.filiais_confirmadas ? " · filiais confirmadas" : " · filiais não confirmadas"}</dd>` : ""}
+      ${i.total_conferido != null ? `<dt>Linha de total do arquivo</dt><dd>${i.total_conferido ? "Confere com a soma das linhas" : "Não conferida"}</dd>` : ""}
       <dt>Títulos no arquivo</dt><dd class="num">${numero(i.titulos)}${i.linhas_lidas != null ? ` de ${numero(i.linhas_lidas)} linha(s) lida(s)` : ""}</dd>
       <dt>Linhas rejeitadas</dt><dd class="num">${numero(i.rejeitadas)}</dd>
       <dt>Colunas não exportadas</dt><dd>${i.colunas_ausentes.length ? esc(i.colunas_ausentes.join(", ")) : "nenhuma"}</dd>
@@ -453,7 +467,7 @@ function abrirIntegracaoSe2(s) {
       <dt>Resultado</dt><dd>${c.confere ? "Confere" : `Diferença: ${numero(c.fora_da_ultima_exportacao)} título(s) do período não vieram na última exportação (mantidos; podem ter sido baixados, excluídos ou estar fora do filtro)`}</dd>
     </dl></div>` : ""}
     <div class="nota">
-      <p>A coleta é feita pelo agente TOTVS no computador do financeiro: ele aguarda a exportação "Exp. CSV" da Consulta Genérica (SE2, Vencimento = Mês Atual), valida e importa. Atualizar esta tela apenas relê os dados locais.</p>
+      <p>A coleta é feita pelo agente TOTVS no computador do financeiro: ele opera o TOTVS WebApp no Chrome do agente (Consulta Genérica › SE2 › Vencimento = Mês Atual › Exp. CSV), captura o arquivo, valida e importa. Atualizar esta tela apenas relê os dados locais.</p>
       <p>Se uma coleta falhar, o painel continua com a última importação válida e esta tela mostra a falha.</p>
     </div>
     <div><h4>Últimas execuções do agente</h4>
@@ -512,7 +526,7 @@ function abrirIntegracao() {
 // ------------------------------------------------------------------ área restrita
 function renderizarAcesso(acesso) {
   const botao = $("btn-acesso");
-  if (!acesso || !acesso.filiais.length) { botao.classList.add("oculto"); return; }
+  if (!acesso || !acesso.configurada) { botao.classList.add("oculto"); return; }
   const nome = acesso.nomes.length === 1 ? acesso.nomes[0].replace(/\s*\(.*\)$/, "") : "Área restrita";
   botao.classList.remove("oculto");
   botao.dataset.estado = acesso.desbloqueado ? "liberado" : "bloqueado";
@@ -522,7 +536,7 @@ function renderizarAcesso(acesso) {
 function abrirAcesso() {
   const a = estado.dados?.acesso;
   if (!a) return;
-  const nomes = a.nomes.length ? a.nomes.join(", ") : a.filiais.join(", ");
+  const nomes = a.nomes.length ? a.nomes.join(", ") : "Área restrita";
   if (a.desbloqueado) {
     abrirGaveta("Área restrita", "Acesso liberado", `
       <p class="nota">Os dados de <b>${esc(nomes)}</b> (folha dos colaboradores e pagamentos a PJ) estão visíveis neste navegador até

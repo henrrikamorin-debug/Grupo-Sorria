@@ -1,8 +1,10 @@
 """Linha de comando do agente TOTVS.
 
     python -m sorria agente verificar
-    python -m sorria agente executar [--origem manual|agendada|claude_code] [--espera MINUTOS]
-    python -m sorria agente importar ARQUIVO.csv [--confirmar-arquivo-antigo] [--aceitar-filial-unica]
+    python -m sorria agente abrir-navegador          (abre o Chrome do agente para o login no TOTVS)
+    python -m sorria agente executar [--origem manual|agendada|claude_code] [--modo navegador|pasta]
+                                     [--diagnostico] [--espera MINUTOS]
+    python -m sorria agente importar ARQUIVO.csv [--confirmar-arquivo-antigo]
     python -m sorria agente historico
     python -m sorria agente agendamento
 
@@ -29,10 +31,11 @@ CODIGOS = {"sucesso": 0, "importada": 0, "ignorada": 0, "falha": 2, "rejeitada":
            "sem_arquivo": 3, "bloqueada": 4}
 
 CONDICOES_SEM_PRESENCA = (
-    "Para a coleta sem ninguém presente, o computador precisa estar ligado (sem suspensão), com a "
-    "sessão do Windows aberta e desbloqueada, o Chrome aberto com a extensão Claude ativa e a sessão "
-    "do TOTVS WebApp autenticada. O agendador do Windows só inicia o agente; a exportação na tela do "
-    "TOTVS depende do Claude Code com a extensão (ou de uma pessoa)."
+    "Para a coleta sem ninguém presente: computador ligado e sem suspensão; sessão do Windows aberta (a "
+    "tarefa usa /IT, só roda com o usuário conectado); o Chrome do agente aberto com o TOTVS WebApp "
+    "autenticado (abra com 'agente abrir-navegador' e entre uma vez). Se a sessão do TOTVS cair, a execução "
+    "espera o login por navegador.tempo_login_minutos e depois termina como falha, sem alterar o painel. "
+    "Funcionamento com a tela bloqueada ou o Chrome fechado NÃO foi testado: confirme no primeiro dia."
 )
 
 
@@ -47,6 +50,23 @@ def verificar(config: dict) -> int:
     item(config["totvs"]["conector"] == "se2_consulta_generica", f"Conector do painel: {config['totvs']['conector']}")
     item(bool(config["totvs"].get("endereco_webapp")), "Endereço do TOTVS WebApp configurado"
          if config["totvs"].get("endereco_webapp") else "Endereço do TOTVS WebApp não configurado (totvs.endereco_webapp)")
+    modo = config["agente"]["modo_coleta"]
+    item(None, f"Modo de coleta: {modo}")
+    if modo == "navegador":
+        from .navegador import chrome_respondendo, localizar_chrome
+        try:
+            import playwright  # noqa: F401
+            item(True, "Biblioteca Playwright instalada")
+        except ImportError:
+            item(False, "Playwright não instalado: py -3 -m pip install -r requirements-navegador.txt")
+        executavel = config["navegador"].get("executavel") or localizar_chrome()
+        item(bool(executavel), f"Google Chrome: {executavel}" if executavel else "Google Chrome não encontrado")
+        porta = int(config["navegador"]["porta_controle"])
+        item(None, "Chrome do agente aberto" if chrome_respondendo(porta)
+             else "Chrome do agente fechado (a execução abre; o login no TOTVS precisa estar feito)")
+        textos = config["navegador"]["textos"]
+        item(None, "Abrangência de filiais confirmada na tela: " + ("configurada" if textos.get("filiais_todas")
+             else "não configurada (importações ficam \"não confirmadas como completas\" até calibrar)"))
     cadastro = carregar_filiais(cfg.caminho_filiais())
     item(bool(cadastro), f"Cadastro de filiais: {len(cadastro)} filial(is)")
     for aviso in validar_regras(cadastro, regras_restricao(config)):
@@ -76,7 +96,7 @@ def verificar(config: dict) -> int:
              else "Nenhuma importação válida ainda")
     print("\n".join(itens))
     print("\n" + CONDICOES_SEM_PRESENCA)
-    return 5 if any(l.startswith("!!") for l in itens if "Conta proprietária" not in l and "Endereço" not in l) else 0
+    return 5 if any(l.startswith("!!") for l in itens if "Conta proprietária" not in l) else 0
 
 
 def agendamento(config: dict) -> int:
@@ -99,18 +119,43 @@ def agendamento(config: dict) -> int:
     return 0
 
 
+def abrir_navegador(config: dict) -> int:
+    """Abre o Chrome dedicado do agente no TOTVS para o login (feito pela pessoa, nunca pelo agente)."""
+    from .navegador import ErroNavegador, abrir_chrome, chrome_respondendo
+
+    endereco = config["totvs"].get("endereco_webapp")
+    if not endereco:
+        print("Configure totvs.endereco_webapp no config.json.")
+        return 5
+    porta = int(config["navegador"]["porta_controle"])
+    if chrome_respondendo(porta):
+        print("O Chrome do agente já está aberto. Entre no TOTVS nele, se ainda não entrou, e deixe-o aberto.")
+        return 0
+    try:
+        abrir_chrome(config, cfg.pasta_navegador(), endereco)
+    except ErroNavegador as erro:
+        print(erro.mensagem)
+        return 5
+    print("Chrome do agente aberto. Entre no TOTVS (ambiente e módulo Financeiro) nessa janela e deixe-a aberta;\n"
+          "a coleta usa essa sessão. Não use essa janela para outros sites.")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     analisador = argparse.ArgumentParser(prog="python -m sorria agente", description=__doc__,
                                          formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = analisador.add_subparsers(dest="comando", required=True)
     sub.add_parser("verificar")
+    sub.add_parser("abrir-navegador")
     executar = sub.add_parser("executar")
     executar.add_argument("--origem", default="manual", choices=["manual", "agendada", "claude_code"])
-    executar.add_argument("--espera", type=float, help="minutos de espera pela exportação")
+    executar.add_argument("--modo", choices=["navegador", "pasta"], help="padrão: agente.modo_coleta")
+    executar.add_argument("--diagnostico", action="store_true",
+                          help="grava tela e texto de cada etapa (calibração) em dados/totvs/diagnostico")
+    executar.add_argument("--espera", type=float, help="modo pasta: minutos de espera pela exportação")
     importar = sub.add_parser("importar")
     importar.add_argument("arquivo")
     importar.add_argument("--confirmar-arquivo-antigo", action="store_true")
-    importar.add_argument("--aceitar-filial-unica", action="store_true")
     sub.add_parser("historico")
     sub.add_parser("agendamento")
     argumentos = analisador.parse_args(argv)
@@ -120,21 +165,24 @@ def main(argv: list[str]) -> int:
         return verificar(config)
     if argumentos.comando == "agendamento":
         return agendamento(config)
+    if argumentos.comando == "abrir-navegador":
+        return abrir_navegador(config)
+    if getattr(argumentos, "diagnostico", False):
+        config["navegador"]["diagnostico"] = "sempre"
     agente = AgenteTotvs(config, cfg.caminho_filiais())
     if argumentos.comando == "historico":
         for linha in agente.historico():
             print(json.dumps(linha, ensure_ascii=False))
         return 0
     if argumentos.comando == "executar":
-        resultado = agente.executar(argumentos.origem, espera_minutos=argumentos.espera)
+        resultado = agente.executar(argumentos.origem, espera_minutos=argumentos.espera, modo_coleta=argumentos.modo)
     else:
         caminho = Path(argumentos.arquivo)
         if not caminho.is_file():
             print(f"Arquivo não encontrado: {caminho}")
             return 5
         resultado = agente.executar("manual", arquivo=caminho,
-                                    confirmar_arquivo_antigo=argumentos.confirmar_arquivo_antigo,
-                                    aceitar_filial_unica=argumentos.aceitar_filial_unica)
+                                    confirmar_arquivo_antigo=argumentos.confirmar_arquivo_antigo)
     resumo = {k: v for k, v in resultado.items() if k != "painel"}
     print(json.dumps(resumo, ensure_ascii=False, indent=2))
     if config["modo"] != "real":

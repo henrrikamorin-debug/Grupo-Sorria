@@ -43,6 +43,7 @@ class BaseAgente(Base):
     def setUp(self):
         super().setUp()
         salvar_filiais(CADASTRO, cfg.caminho_filiais())
+        self.config["agente"]["modo_coleta"] = "pasta"
         self.config["agente"]["espera_entre_tentativas_segundos"] = 0
         self.config["agente"]["segundos_tamanho_estavel"] = 0
         self.config["agente"]["intervalo_verificacao_segundos"] = 0
@@ -126,14 +127,65 @@ class TestImportacao(BaseAgente):
         self.assertIn("fora de", r["mensagem"])
         self.assertEqual(self.total(), (0, 0))
 
-    def test_filial_unica_e_linhas_invalidas(self):
+    def test_filial_unica_nao_rejeita_mas_nao_e_completa(self):
         r = self.importar(self.csv("teste.csv", [linha(numero="1"), linha(numero="2")]))
+        self.assertEqual(r["situacao"], "importada")
+        self.assertFalse(r["completa"])
+        codigos = {p["codigo"] for p in r["pendencias"]}
+        self.assertIn("filial_unica", codigos)
+        self.assertIn("escopo_nao_verificado", codigos)  # arquivo importado à mão: filtro não verificado
+
+    def test_varias_filiais_nao_bastam_para_completa(self):
+        linhas = [linha(numero="1"), linha(numero="2", filial="017401"), linha(numero="3", filial="031801")]
+        r = self.importar(self.csv("teste.csv", linhas))
+        self.assertFalse(r["completa"])
+        with self.banco() as c:
+            conferencia = __import__("sorria.totvs.importacao", fromlist=["x"]).conferir_lote
+        from sorria.totvs.classificacao import regras_restricao
+        leitura = ler_exportacao((CABECALHO + "\n" + "\n".join(linhas)).encode("cp1252"))
+        escopo = {"filtro_confirmado": True, "filiais_confirmadas": None}
+        resultado = conferencia(leitura, self.config, CADASTRO, regras_restricao(self.config),
+                                {"016501", "017401", "031801"}, escopo, {})
+        self.assertFalse(resultado["completa"])
+        self.assertIn("filiais_nao_confirmadas", {p["codigo"] for p in resultado["pendencias"]})
+        escopo["filiais_confirmadas"] = True
+        resultado = conferencia(leitura, self.config, CADASTRO, regras_restricao(self.config),
+                                {"016501", "017401", "031801"}, escopo, {})
+        self.assertTrue(resultado["completa"])
+
+    def test_linhas_descartadas_e_total_do_arquivo(self):
+        self.config["agente"]["max_percentual_linhas_rejeitadas"] = 50
+        valida = [linha(numero="1", valor="100,00"), linha(numero="2", filial="017401", valor="50,00")]
+        # Total confere: importa.
+        r = self.importar(self.csv("ok.csv", valida + ["TOTAL GERAL;;;;;;;;;;;;150,00;;;"]))
+        self.assertEqual(r["situacao"], "importada")
+        with self.banco() as c:
+            self.assertEqual(c.execute("SELECT total_conferido FROM importacoes ORDER BY id DESC").fetchone()[0], 1)
+        # Total não confere e nenhuma linha descartada explica: lote rejeitado, painel preservado.
+        antes = self.total()
+        r = self.importar(self.csv("truncado.csv", valida + ["TOTAL GERAL;;;;;;;;;;;;999,00;;;"]))
         self.assertEqual(r["situacao"], "rejeitada")
-        self.assertIn("única filial", r["mensagem"])
+        self.assertIn("total", r["mensagem"])
+        self.assertEqual(self.total(), antes)
+        # Linha descartada (data inválida) com valor: total reconciliado, mas a importação não é completa.
+        descartada = linha(numero="3", filial="017401", valor="25,00").replace(f";{(HOJE.replace(day=10)):%d/%m/%Y};", ";99/99/9999;", 1)
+        r = self.importar(self.csv("parcial.csv", valida + [descartada, "TOTAL GERAL;;;;;;;;;;;;175,00;;;"]))
+        self.assertEqual((r["situacao"], r["rejeitadas"], r["completa"]), ("importada", 1, False))
+        self.assertIn("linhas_descartadas", {p["codigo"] for p in r["pendencias"]})
+
+    def test_linha_descartada_do_escritorio_nao_aparece_para_outros(self):
+        self.config["agente"]["max_percentual_linhas_rejeitadas"] = 50
+        ruim = linha(numero="3", filial="031801", valor="abc")
+        r = self.importar(self.csv("teste.csv", [linha(numero="1"), linha(numero="2", filial="017401"), ruim]))
+        self.assertEqual(r["rejeitadas_publicas"], 0)
+        codigos = {p["codigo"]: p["restrita"] for p in r["pendencias"]}
+        self.assertTrue(codigos["linhas_descartadas_restritas"])
+        self.assertNotIn("linhas_descartadas", codigos)
+
+    def test_muitas_linhas_invalidas_rejeitam_o_lote(self):
         r = self.importar(self.csv("teste2.csv", [linha(numero="1"), linha(numero="2", filial="017401", valor="abc")]))
         self.assertEqual(r["situacao"], "rejeitada")  # 50% de linhas inválidas > limite
-        with self.banco() as c:
-            self.assertGreater(c.execute("SELECT COUNT(*) FROM importacoes WHERE situacao='rejeitada'").fetchone()[0], 1)
+        self.assertNotRegex(r["mensagem"], r"\d+ de \d+")  # sem contagens na mensagem pública
 
     def test_arquivo_antigo_exige_confirmacao(self):
         antigo = time.time() - 3 * 86400
@@ -234,6 +286,13 @@ class TestPainelAgente(BaseAgente):
             except urllib.error.HTTPError as erro:
                 return erro.code, erro.headers, erro.read().decode()
         try:
+            # O estado do cadeado não depende dos dados restritos nem traz o código da filial.
+            _, _, acesso_com_dados = req("/api/acesso")
+            with self.banco() as c:
+                c.execute("UPDATE lancamentos SET clinica = 'NOME QUE SÓ EXISTE NOS DADOS' WHERE filial = '031801'")
+            _, _, acesso_alterado = req("/api/acesso")
+            self.assertEqual(acesso_com_dados, acesso_alterado)
+            self.assertNotIn("031801", acesso_com_dados)
             inicio = HOJE.replace(day=1).isoformat()
             for rota in (f"/api/painel?inicio={inicio}", f"/api/ocorrencias.csv?inicio={inicio}", "/api/situacao",
                          f"/api/painel?inicio={inicio}&clinica=ESCRIT%C3%93RIO", "/api/agente/contexto"):

@@ -10,7 +10,17 @@ Validações antes de gravar (qualquer falha rejeita o lote inteiro e nada muda)
   da Consulta Genérica) dentro do mês de referência;
 * proporção de linhas rejeitadas dentro do limite configurado;
 * mesma composição de chave das importações anteriores (evita duplicar);
-* mais de uma filial no arquivo (uma só costuma indicar filtro de filial ativo).
+* linha de total do arquivo (quando existe): a soma das linhas precisa conferir.
+
+Completude (o lote é importado, mas só é "completo" sem pendências):
+
+* linhas descartadas sem reconciliação deixam a importação incompleta;
+* abrangência conferida contra as filiais esperadas para a execução
+  (``agente.filiais_esperadas`` ou o cadastro): uma filial só não é rejeitada
+  automaticamente, e várias filiais não bastam para considerar completo; a
+  abrangência só é confirmada pelo filtro verificado na tela pelo executor;
+* cada pendência é marcada como restrita quando envolve dados da área
+  restrita, para não revelar sua existência a quem não tem acesso.
 
 Gravação: chave composta filial|prefixo|número|parcela|tipo|fornecedor|loja.
 Reimportar atualiza o título; títulos ausentes do arquivo NÃO são apagados.
@@ -25,6 +35,7 @@ import shutil
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from .. import db
 from .classificacao import classificar, regras_restricao, validar_regras
@@ -58,9 +69,13 @@ def _registrar(conexao, dados: dict) -> int:
 
 def importar_arquivo(conexao, caminho: Path, config: dict, cadastro: dict, *, hoje: date | None = None,
                      inicio_execucao: datetime | None = None, execucao_id: int | None = None,
-                     confirmar_arquivo_antigo: bool = False, aceitar_filial_unica: bool = False,
+                     confirmar_arquivo_antigo: bool = False, escopo: dict | None = None,
                      pasta_arquivo: Path | None = None) -> dict:
-    """Valida e importa um arquivo. Devolve o resumo (situacao: importada | ignorada | rejeitada)."""
+    """Valida e importa um arquivo. Devolve o resumo (situacao: importada | ignorada | rejeitada).
+
+    ``escopo``: o que o executor do navegador conferiu na tela (filtro, filiais). Sem ele
+    (arquivo importado à mão ou pela pasta), a abrangência fica como não verificada.
+    """
     cfg = config["agente"]
     hoje = hoje or date.today()
     agora = datetime.now(timezone.utc)
@@ -87,8 +102,7 @@ def importar_arquivo(conexao, caminho: Path, config: dict, cadastro: dict, *, ho
 
     try:
         resultado = _validar_e_gravar(conexao, caminho, conteudo, config, cadastro, resumo_arquivo, hoje,
-                                      inicio, fim, agora, inicio_execucao, confirmar_arquivo_antigo,
-                                      aceitar_filial_unica)
+                                      inicio, fim, agora, inicio_execucao, confirmar_arquivo_antigo, escopo)
     except (LoteRejeitado, ArquivoInvalido) as erro:
         detalhes = getattr(erro, "detalhes", {})
         id_ = _registrar(conexao, {**resumo_arquivo, "situacao": "rejeitada", "mensagem": str(erro)[:500],
@@ -101,7 +115,7 @@ def importar_arquivo(conexao, caminho: Path, config: dict, cadastro: dict, *, ho
 
 
 def _validar_e_gravar(conexao, caminho, conteudo, config, cadastro, resumo_arquivo, hoje, inicio, fim, agora,
-                      inicio_execucao, confirmar_arquivo_antigo, aceitar_filial_unica) -> dict:
+                      inicio_execucao, confirmar_arquivo_antigo, escopo) -> dict:
     cfg = config["agente"]
     modificado = datetime.fromtimestamp(caminho.stat().st_mtime, timezone.utc)
     tolerancia = timedelta(seconds=int(cfg["tolerancia_relogio_segundos"]))
@@ -125,12 +139,13 @@ def _validar_e_gravar(conexao, caminho, conteudo, config, cadastro, resumo_arqui
         raise LoteRejeitado("Nenhum título válido no arquivo.", detalhes)
     limite = float(cfg["max_percentual_linhas_rejeitadas"])
     if leitura.linhas_lidas and 100 * len(leitura.rejeitadas) / leitura.linhas_lidas > limite:
-        raise LoteRejeitado(f"{len(leitura.rejeitadas)} de {leitura.linhas_lidas} linhas inválidas "
-                            f"(limite {limite:g}%). Confira o layout exportado.", detalhes)
+        # Sem contagens na mensagem: ela aparece no histórico para quem não vê a área restrita.
+        raise LoteRejeitado(f"Proporção de linhas inválidas acima do limite ({limite:g}%). Confira o layout "
+                            "exportado.", detalhes)
     fora = [t for t in leitura.titulos if not inicio.isoformat() <= t.vencimento <= fim.isoformat()]
     if fora:
         raise LoteRejeitado(
-            f"{len(fora)} título(s) com vencimento fora de {inicio:%m/%Y} (ex.: linha {fora[0].linha}). "
+            f"Há título(s) com vencimento fora de {inicio:%m/%Y}. "
             "O filtro da Consulta Genérica deve ser Vencimento = Mês Atual.", detalhes)
     ultima = conexao.execute("SELECT colunas_chave FROM importacoes WHERE situacao = 'importada' "
                              "ORDER BY id DESC LIMIT 1").fetchone()
@@ -138,14 +153,10 @@ def _validar_e_gravar(conexao, caminho, conteudo, config, cadastro, resumo_arqui
         raise LoteRejeitado("As colunas que formam a chave do título mudaram em relação à última importação "
                             f"({ultima['colunas_chave']} → {detalhes['colunas_chave']}). Importar assim poderia "
                             "duplicar títulos; confira o layout da exportação.", detalhes)
-    filiais = {t.filial for t in leitura.titulos}
-    if len(filiais) == 1 and len(cadastro) > 1 and not aceitar_filial_unica:
-        raise LoteRejeitado("O arquivo tem títulos de uma única filial; provavelmente a consulta está restrita à "
-                            "filial logada. Ajuste o filtro de filiais e exporte de novo (ou confirme com "
-                            "--aceitar-filial-unica se for intencional).", detalhes)
-
     regras = regras_restricao(config)
     avisos = leitura.avisos + validar_regras(cadastro, regras)
+    filiais = {t.filial for t in leitura.titulos}
+    conferencia = conferir_lote(leitura, config, cadastro, regras, filiais, escopo, detalhes)
     tem_saldo = "saldo" in leitura.colunas
     tem_baixa = "baixa" in leitura.colunas
     agora_iso = db.agora_iso()
@@ -184,7 +195,7 @@ def _validar_e_gravar(conexao, caminho, conteudo, config, cadastro, resumo_arqui
                                    "valor_publico_centavos": valor_publico, "valor_restrito_centavos": valor_restrito,
                                    "filiais_arquivo": len(filiais),
                                    "filiais_sem_cadastro": len([f for f in filiais if f not in cadastro]),
-                                   "avisos": json.dumps(avisos, ensure_ascii=False)})
+                                   "avisos": json.dumps(avisos, ensure_ascii=False), **conferencia["colunas"]})
         conexao.executemany(
             "INSERT INTO titulos_pagar (chave, filial, prefixo, numero, parcela, tipo, natureza, fornecedor, loja, "
             "nome_fornecedor, emissao, vencimento, vencimento_real, valor_centavos, saldo_centavos, baixa, historico, "
@@ -209,7 +220,115 @@ def _validar_e_gravar(conexao, caminho, conteudo, config, cadastro, resumo_arqui
             "novos": len(chaves) - len(existentes), "atualizados": len(existentes),
             "rejeitadas": len(leitura.rejeitadas), "publicos": publicos, "restritos": restritos,
             "valor_publico_centavos": valor_publico, "valor_restrito_centavos": valor_restrito,
-            "periodo": [inicio.isoformat(), fim.isoformat()], "avisos": avisos}
+            "periodo": [inicio.isoformat(), fim.isoformat()], "avisos": avisos,
+            "completa": conferencia["completa"], "completa_publica": conferencia["completa_publica"],
+            "rejeitadas_publicas": conferencia["colunas"]["rejeitadas_publicas"],
+            "pendencias": conferencia["pendencias"]}
+
+
+def conferir_lote(leitura, config: dict, cadastro: dict, regras: dict, filiais: set[str], escopo: dict | None,
+                  detalhes: dict) -> dict:
+    """Reconciliação com o total do arquivo, linhas descartadas e abrangência de filiais.
+
+    Divergência de total sem explicação rejeita o lote (LoteRejeitado). O resto vira
+    pendência: o lote é gravado, mas não é publicado como completo.
+    """
+    tamanho = int(config["agente"]["tamanho_codigo_filial"])
+    pendencias: list[dict] = []
+
+    def pendencia(codigo, texto, restrita, bloqueia=True):
+        pendencias.append({"codigo": codigo, "texto": texto, "restrita": bool(restrita), "bloqueia": bloqueia})
+
+    # Linhas descartadas: restritas quando a filial/natureza/prefixo indicam a área restrita ou
+    # quando não dá para saber (filial ilegível ou fora do cadastro).
+    rejeitadas_restritas = rejeitadas_publicas = sem_valor = 0
+    sem_valor_restrita = False
+    valor_rejeitado = 0
+    for linha in leitura.rejeitadas_detalhe:
+        ref = SimpleNamespace(filial=linha["filial"], natureza=linha["natureza"], prefixo=linha["prefixo"])
+        restrita = not linha["filial"] or classificar(ref, cadastro, regras)[0]
+        rejeitadas_restritas += restrita
+        rejeitadas_publicas += not restrita
+        if linha["valor_centavos"] is None:
+            sem_valor += 1
+            sem_valor_restrita |= restrita
+        else:
+            valor_rejeitado += linha["valor_centavos"]
+    if rejeitadas_publicas:
+        pendencia("linhas_descartadas", f"{rejeitadas_publicas} linha(s) descartada(s) sem reconciliação "
+                  "(motivos em importacao_rejeicoes).", False)
+    if rejeitadas_restritas:
+        pendencia("linhas_descartadas_restritas", f"{rejeitadas_restritas} linha(s) descartada(s) da área restrita "
+                  "ou de classificação incerta, sem reconciliação.", True)
+
+    # Total do arquivo.
+    soma = sum(t.valor_centavos for t in leitura.titulos)
+    total_arquivo, total_conferido = None, None
+    legiveis = [v for _, v in leitura.totais if v is not None]
+    if leitura.totais:
+        geral = [v for rotulo, v in leitura.totais if "GERAL" in rotulo and v is not None]
+        total_arquivo = geral[-1] if geral else (legiveis[-1] if len(leitura.totais) == 1 and legiveis else None)
+        if total_arquivo is None:
+            pendencia("total_nao_conferido", "Linha de total do arquivo ilegível ou ambígua; total não conferido.",
+                      False)
+        elif sem_valor:
+            total_conferido = False
+            pendencia("total_nao_conferido", "Total do arquivo não conferido: há linhas descartadas sem valor "
+                      "legível.", sem_valor_restrita)
+        elif soma + valor_rejeitado != total_arquivo:
+            detalhes.update({"total_arquivo_centavos": total_arquivo, "valor_rejeitado_centavos": valor_rejeitado})
+            raise LoteRejeitado("A soma das linhas não confere com a linha de total do próprio arquivo; a "
+                                "exportação pode estar truncada. O painel continua com a última versão válida.",
+                                detalhes)
+        else:
+            total_conferido = True
+
+    # Abrangência de filiais.
+    configuradas = [str(f).zfill(tamanho) if str(f).isdigit() else str(f)
+                    for f in config["agente"].get("filiais_esperadas") or []]
+    esperadas = set(configuradas) or set(cadastro)
+    restrita_filial = lambda f: classificar(SimpleNamespace(filial=f, natureza="", prefixo=""), cadastro, regras)[0]
+    if escopo is None:
+        pendencia("escopo_nao_verificado", "Filtro e abrangência da consulta não verificados na tela do TOTVS "
+                  "(arquivo importado sem o executor do navegador).", False)
+    else:
+        if not escopo.get("filtro_confirmado"):
+            pendencia("filtro_nao_confirmado", "Filtro Vencimento = Mês Atual não confirmado na tela.", False)
+        if not escopo.get("filiais_confirmadas"):
+            pendencia("filiais_nao_confirmadas", "Abrangência de filiais não confirmada na tela do TOTVS "
+                      "(configure navegador.textos.filiais_todas após a calibração).", False)
+    if len(esperadas) > 1 and len(filiais) == 1:
+        pendencia("filial_unica", "O arquivo tem títulos de uma única filial; a abrangência esperada é maior. "
+                  "Confira se há filtro de filial ativo.", restrita_filial(next(iter(filiais))))
+    fora = filiais - esperadas
+    if fora and configuradas:
+        publicas = [f for f in fora if not restrita_filial(f)]
+        if publicas:
+            pendencia("filiais_fora_escopo", f"{len(publicas)} filial(is) fora das filiais esperadas.", False)
+        if len(fora) > len(publicas):
+            pendencia("filiais_fora_escopo_restritas", "Filial(is) da área restrita fora das esperadas.", True)
+    ausentes = esperadas - filiais
+    if ausentes:
+        publicas = [f for f in ausentes if not restrita_filial(f)]
+        if publicas:
+            pendencia("filiais_sem_titulos", f"{len(publicas)} filial(is) esperada(s) sem títulos no arquivo "
+                      "(pode ser normal no mês).", False, bloqueia=False)
+        if len(ausentes) > len(publicas):
+            pendencia("filiais_sem_titulos_restritas", "Filial(is) da área restrita sem títulos no arquivo.", True,
+                      bloqueia=False)
+
+    completa = not any(p["bloqueia"] for p in pendencias)
+    completa_publica = not any(p["bloqueia"] and not p["restrita"] for p in pendencias)
+    return {
+        "completa": completa, "completa_publica": completa_publica, "pendencias": pendencias,
+        "colunas": {"completa": int(completa), "completa_publica": int(completa_publica),
+                    "pendencias": json.dumps(pendencias, ensure_ascii=False),
+                    "rejeitadas_publicas": rejeitadas_publicas, "total_arquivo_centavos": total_arquivo,
+                    "valor_rejeitado_centavos": valor_rejeitado,
+                    "total_conferido": None if total_conferido is None else int(total_conferido),
+                    "escopo": json.dumps(escopo, ensure_ascii=False) if escopo is not None else None,
+                    "filiais_esperadas": len(esperadas)},
+    }
 
 
 def _arquivar(caminho: Path, pasta_arquivo: Path | None, destino: str, hash_: str) -> None:

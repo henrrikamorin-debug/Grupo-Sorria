@@ -91,6 +91,11 @@ class LeituraSE2:
     linhas_lidas: int
     codificacao: str
     delimitador: str
+    # Por linha rejeitada: o que foi possível ler da filial, natureza, prefixo e valor
+    # (para classificar a área restrita e reconciliar o total). Nunca o conteúdo da linha.
+    rejeitadas_detalhe: list[dict] = field(default_factory=list)
+    # Valor das linhas de total do arquivo, em centavos (None = ilegível), com o rótulo.
+    totais: list[tuple[str, int | None]] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------- utilidades
@@ -202,6 +207,8 @@ def ler_exportacao(conteudo: bytes, tamanho_filial: int = 6) -> LeituraSE2:
 
     titulos: list[TituloSE2] = []
     rejeitadas: list[tuple[int, str]] = []
+    detalhes_rejeitadas: list[dict] = []
+    totais: list[tuple[str, int | None]] = []
     filiais_corrigidas = 0
     leitor = csv.reader(io.StringIO("\n".join(linhas_texto[inicio + 1:])), delimiter=delimitador)
     lidas = 0
@@ -209,14 +216,15 @@ def ler_exportacao(conteudo: bytes, tamanho_filial: int = 6) -> LeituraSE2:
         if not any(c.strip() for c in celulas):
             continue
         primeira = celulas[0].strip().upper() if celulas else ""
-        if primeira.startswith("TOTAL"):
-            avisos.append(f"Linha {deslocamento}: linha de total ignorada.")
-            continue
-        lidas += 1
-
         def valor_de(campo):
             posicao = colunas.get(campo)
             return celulas[posicao].strip() if posicao is not None and posicao < len(celulas) else ""
+
+        if primeira.startswith("TOTAL"):
+            totais.append((primeira[:40], _centavos_ou_none(valor_de("valor"))))
+            avisos.append(f"Linha {deslocamento}: linha de total usada só na conferência.")
+            continue
+        lidas += 1
 
         try:
             dados = {c: valor_de(c) for c in CODIGOS + ("nome_fornecedor", "historico")}
@@ -243,6 +251,12 @@ def ler_exportacao(conteudo: bytes, tamanho_filial: int = 6) -> LeituraSE2:
             saldo = converter_valor(valor_de("saldo")) if "saldo" in colunas else None
         except ValueError as erro:
             rejeitadas.append((deslocamento, str(erro)))
+            filial = valor_de("filial")
+            if filial.isdigit() and len(filial) < tamanho_filial:
+                filial = filial.zfill(tamanho_filial)
+            detalhes_rejeitadas.append({"linha": deslocamento, "filial": filial, "natureza": valor_de("natureza"),
+                                        "prefixo": valor_de("prefixo"),
+                                        "valor_centavos": _centavos_ou_none(valor_de("valor"))})
             continue
 
         vazios = [c for c in ("prefixo", "parcela", "tipo", "natureza", "loja", "nome_fornecedor")
@@ -263,8 +277,16 @@ def ler_exportacao(conteudo: bytes, tamanho_filial: int = 6) -> LeituraSE2:
         titulos=titulos, rejeitadas=rejeitadas,
         colunas={c: cabecalhos[p].strip() for c, p in colunas.items()}, colunas_ausentes=ausentes,
         colunas_chave=colunas_chave, avisos=avisos, linhas_lidas=lidas,
-        codificacao=codificacao, delimitador=delimitador,
+        codificacao=codificacao, delimitador=delimitador, rejeitadas_detalhe=detalhes_rejeitadas, totais=totais,
     )
+
+
+def _centavos_ou_none(texto: str) -> int | None:
+    try:
+        valor = converter_valor(texto)
+    except ValueError:
+        return None
+    return None if valor is None else para_centavos(valor)
 
 
 # ---------------------------------------------------------------- situação do título

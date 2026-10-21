@@ -250,6 +250,14 @@ MIGRACOES = [
     ("lancamentos", "responsavel", "TEXT"), ("ocorrencias", "responsavel", "TEXT"),
     ("lancamentos", "restrito", "INTEGER"), ("ocorrencias", "restrito", "INTEGER"),
     ("coletas", "registros_restritos", "INTEGER"), ("coletas", "ocorrencias_restritas", "INTEGER"),
+    ("importacoes", "completa", "INTEGER"), ("importacoes", "completa_publica", "INTEGER"),
+    ("importacoes", "pendencias", "TEXT"), ("importacoes", "rejeitadas_publicas", "INTEGER"),
+    ("importacoes", "total_arquivo_centavos", "INTEGER"), ("importacoes", "valor_rejeitado_centavos", "INTEGER"),
+    ("importacoes", "total_conferido", "INTEGER"), ("importacoes", "escopo", "TEXT"),
+    ("importacoes", "filiais_esperadas", "INTEGER"),
+    ("execucoes_agente", "modo_coleta", "TEXT"), ("execucoes_agente", "etapas", "TEXT"),
+    ("execucoes_agente", "diagnostico", "TEXT"), ("execucoes_agente", "painel_confirmado", "INTEGER"),
+    ("execucoes_agente", "escopo", "TEXT"),
 ]
 
 

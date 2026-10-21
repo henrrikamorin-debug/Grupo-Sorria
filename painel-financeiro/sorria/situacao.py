@@ -109,10 +109,11 @@ def montar_situacao_se2(conexao, config: dict, servico, conector: dict, autoriza
     tentativa = conexao.execute(
         "SELECT * FROM execucoes_agente WHERE situacao != 'em_andamento' ORDER BY id DESC LIMIT 1").fetchone()
     andamento = conexao.execute(
-        "SELECT etapa FROM execucoes_agente WHERE situacao = 'em_andamento' ORDER BY id DESC LIMIT 1").fetchone()
+        "SELECT etapa, mensagem FROM execucoes_agente WHERE situacao = 'em_andamento' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
     execucoes = [dict(r) for r in conexao.execute(
         "SELECT e.id, e.iniciada_em, e.finalizada_em, e.situacao, e.origem, e.etapa, e.tentativas, e.mensagem, "
-        "i.arquivo_nome, i.situacao AS importacao FROM execucoes_agente e "
+        "e.modo_coleta, e.painel_confirmado, i.arquivo_nome, i.situacao AS importacao FROM execucoes_agente e "
         "LEFT JOIN importacoes i ON i.id = e.importacao_id ORDER BY e.id DESC LIMIT 8")]
     tolerancia_h = float(config["agente"]["tolerancia_desatualizacao_horas"])
     minutos = _minutos_desde(importacao["finalizada_em"]) if importacao else None
@@ -131,10 +132,20 @@ def montar_situacao_se2(conexao, config: dict, servico, conector: dict, autoriza
         nivel, titulo = "alerta", "Última coleta não concluída"
         detalhe = f"{tentativa['mensagem'] or tentativa['situacao']} — exibindo a última importação válida."
     else:
-        nivel, titulo, detalhe = "ok", "Coleta TOTVS válida", ""
+        nivel, titulo, detalhe = "ok", "Coleta TOTVS válida e completa", ""
 
     dados_importacao = conferencia = None
+    pendencias: list[dict] = []
+    completa = None
     if importacao:
+        # Pendências que envolvem a área restrita só aparecem para quem tem acesso.
+        pendencias = [p for p in json.loads(importacao["pendencias"] or "[]") if autorizado or not p.get("restrita")]
+        if importacao["completa"] is not None:
+            completa = bool(importacao["completa"] if autorizado else importacao["completa_publica"])
+        if nivel == "ok" and not completa:
+            nivel, titulo = "alerta", "Coleta TOTVS importada — não confirmada como completa"
+            detalhe = " ".join(p["texto"] for p in pendencias if p.get("bloqueia")) or \
+                "Importação anterior às verificações de completude."
         avisos = json.loads(importacao["avisos"] or "[]")
         dados_importacao = {
             "id": importacao["id"], "finalizada_em": importacao["finalizada_em"],
@@ -146,7 +157,11 @@ def montar_situacao_se2(conexao, config: dict, servico, conector: dict, autoriza
             "titulos": importacao["publicos"] + (importacao["restritos"] if autorizado else 0),
             "novos": importacao["novos"] if autorizado else None,
             "atualizados": importacao["atualizados"] if autorizado else None,
-            "rejeitadas": importacao["rejeitadas"],
+            "rejeitadas": importacao["rejeitadas"] if autorizado else importacao["rejeitadas_publicas"],
+            "completa": completa, "pendencias": pendencias,
+            "total_conferido": (None if importacao["total_conferido"] is None else bool(importacao["total_conferido"]))
+            if autorizado else None,
+            "escopo": json.loads(importacao["escopo"]) if importacao["escopo"] else None,
             "colunas_ausentes": json.loads(importacao["colunas_ausentes"] or "[]"),
             "avisos": avisos if autorizado else [a for a in avisos if "restrit" not in a.lower()],
             "restritos": importacao["restritos"] if autorizado else None,
@@ -180,6 +195,8 @@ def montar_situacao_se2(conexao, config: dict, servico, conector: dict, autoriza
         "desatualizado": desatualizado,
         "tolerancia_minutos": int(tolerancia_h * 60),
         "coleta_em_andamento": bool(andamento), "etapa_em_andamento": andamento["etapa"] if andamento else None,
+        # Login pendente no TOTVS: alguém precisa entrar na janela do Chrome do agente.
+        "acao_necessaria": (andamento["mensagem"] if andamento and andamento["etapa"] == "aguardando_login" else None),
         "agendador_ativo": bool(config["agente"]["agendamento"].get("ativo") and config["agente"]["agendamento"].get("horarios")),
         "agendamento": config["agente"]["agendamento"],
         "intervalo_minutos": None, "proxima_coleta_prevista": None,

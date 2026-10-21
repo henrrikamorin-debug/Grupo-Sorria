@@ -15,9 +15,11 @@
   },
   "totvs": {
     "conector": "se2_consulta_generica",
-    "endereco_webapp": ""
+    "endereco_webapp": "https://escritorio135422.protheus.cloudtotvs.com.br:4010/webapp/"
   },
   "agente": {
+    "modo_coleta": "navegador",
+    "filiais_esperadas": [],
     "pasta_entrada": "",
     "padrao_arquivo": "*.csv",
     "tempo_espera_minutos": 20,
@@ -36,6 +38,62 @@
     },
     "tolerancia_desatualizacao_horas": 26,
     "verificacoes_se2": true
+  },
+  "navegador": {
+    "executavel": "",
+    "porta_controle": 9333,
+    "argumentos_extras": [],
+    "tempo_login_minutos": 15,
+    "tempo_passo_segundos": 60,
+    "tempo_exportacao_minutos": 10,
+    "diagnostico": "falha",
+    "dias_diagnostico": 7,
+    "textos": {
+      "menu_pronto": [
+        "Pesquisar"
+      ],
+      "pesquisa": [
+        "Pesquisar"
+      ],
+      "rotina": [
+        "Consulta Genérica"
+      ],
+      "tabela": "SE2",
+      "tabela_descricao": "Contas a Pagar",
+      "confirmar": [
+        "Confirmar",
+        "OK",
+        "Ok"
+      ],
+      "filtro_abrir": [
+        "Filtrar",
+        "Filtro",
+        "Gerenciar filtros"
+      ],
+      "filtro_campo": "Vencimento",
+      "filtro_operador": "Mês Atual",
+      "filtro_aplicar": [
+        "Aplicar",
+        "Filtrar",
+        "Confirmar",
+        "OK"
+      ],
+      "exportar": [
+        "Exp. CSV"
+      ],
+      "confirmar_exportacao": [
+        "Sim",
+        "OK",
+        "Confirmar"
+      ],
+      "filiais_todas": [],
+      "outros_filtros": [],
+      "sessao_encerrada": [
+        "Sessão encerrada",
+        "Conexão perdida",
+        "conexão com o servidor foi perdida"
+      ]
+    }
   },
   "categorias": {
     "por_prefixo": {},

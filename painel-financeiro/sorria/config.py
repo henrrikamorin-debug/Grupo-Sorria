@@ -48,9 +48,14 @@ PADRAO: dict = {
         # "se2_consulta_generica": o painel (modo real) lê os títulos de Contas a
         # Pagar importados pelo agente a partir do Exp. CSV da Consulta Genérica.
         "conector": "se2_consulta_generica",
-        "endereco_webapp": "",
+        "endereco_webapp": "https://escritorio135422.protheus.cloudtotvs.com.br:4010/webapp/",
     },
     "agente": {
+        # "navegador": o agente opera o TOTVS WebApp no Chrome (sorria/totvs/navegador.py)
+        # e captura o download. "pasta": só aguarda um CSV salvo na pasta de entrada.
+        "modo_coleta": "navegador",
+        # Filiais que a exportação deve abranger. Vazio = todas as filiais do cadastro.
+        "filiais_esperadas": [],
         # Pasta onde a exportação (Exp. CSV) deve ser salva. Vazio = dados/totvs/entrada.
         "pasta_entrada": "",
         "padrao_arquivo": "*.csv",
@@ -74,6 +79,43 @@ PADRAO: dict = {
         "tolerancia_desatualizacao_horas": 26,
         # Verificações objetivas de Contas a Pagar (em validação, ver docs/AGENTE_TOTVS.md).
         "verificacoes_se2": True,
+    },
+    "navegador": {
+        # Chrome dedicado ao agente: perfil próprio (dados/navegador/perfil) e porta de
+        # controle aberta só neste computador. A sessão do TOTVS fica aberta nessa janela.
+        "executavel": "",  # vazio = procura o Google Chrome instalado
+        "porta_controle": 9333,
+        "argumentos_extras": [],
+        # Espera pelo login no TOTVS (feito por uma pessoa; o agente nunca digita senha).
+        "tempo_login_minutos": 15,
+        "tempo_passo_segundos": 60,
+        "tempo_exportacao_minutos": 10,
+        # Capturas de tela e textos de cada etapa (podem conter dados confidenciais;
+        # ficam em dados/totvs/diagnostico e são apagados após "dias_diagnostico").
+        "diagnostico": "falha",  # "falha" | "sempre" | "nunca"
+        "dias_diagnostico": 7,
+        # Textos da tela usados em cada etapa. O agente só clica em elementos cujo texto
+        # esteja nesta lista e nunca em ações de alteração (ver ACOES_PROIBIDAS).
+        "textos": {
+            "menu_pronto": ["Pesquisar"],
+            "pesquisa": ["Pesquisar"],
+            "rotina": ["Consulta Genérica"],
+            "tabela": "SE2",
+            "tabela_descricao": "Contas a Pagar",
+            "confirmar": ["Confirmar", "OK", "Ok"],
+            "filtro_abrir": ["Filtrar", "Filtro", "Gerenciar filtros"],
+            "filtro_campo": "Vencimento",
+            "filtro_operador": "Mês Atual",
+            "filtro_aplicar": ["Aplicar", "Filtrar", "Confirmar", "OK"],
+            "exportar": ["Exp. CSV"],
+            "confirmar_exportacao": ["Sim", "OK", "Confirmar"],
+            # Texto que a tela mostra quando a consulta abrange todas as filiais esperadas.
+            # Vazio = abrangência não confirmada pela tela (a importação fica "não completa").
+            "filiais_todas": [],
+            # Textos que indicam outros filtros ativos (a coleta para se aparecerem).
+            "outros_filtros": [],
+            "sessao_encerrada": ["Sessão encerrada", "Conexão perdida", "conexão com o servidor foi perdida"],
+        },
     },
     "categorias": {
         # Prefixo do título no TOTVS -> categoria exibida no painel.
@@ -162,6 +204,8 @@ def validar(config: dict) -> None:
         raise ValueError("coleta.intervalo_minutos deve ser um número >= 1")
     if config["coleta"]["tempo_maximo_minutos"] <= 0:
         raise ValueError("coleta.tempo_maximo_minutos deve ser positivo")
+    if config["agente"]["modo_coleta"] not in ("navegador", "pasta"):
+        raise ValueError("agente.modo_coleta deve ser \"navegador\" ou \"pasta\"")
 
 
 def caminho_banco(config: dict) -> Path:
@@ -195,6 +239,11 @@ def caminho_contratos() -> Path:
 def pasta_agente(config: dict) -> Path:
     """Pasta de trabalho do agente TOTVS: entrada, processados, rejeitados."""
     return pasta_dados() / "totvs"
+
+
+def pasta_navegador() -> Path:
+    """Perfil do Chrome dedicado ao agente (contém a sessão do TOTVS; fora do repositório)."""
+    return pasta_dados() / "navegador" / "perfil"
 
 
 def pasta_entrada_agente(config: dict) -> Path:

@@ -143,16 +143,15 @@ class ManipuladorPainel(BaseHTTPRequestHandler):
         return bool(tv or not self._local() or not self._sessao_expira())
 
     def _estado_acesso(self, conexao) -> dict:
+        """Estado do cadeado. Vem só da configuração e do cadastro de filiais, nunca dos lançamentos:
+        a resposta é a mesma havendo ou não dados restritos, e o código da filial só vai a quem
+        liberou o acesso."""
         restritas = self.app.filiais_restritas
-        nomes = []
-        if restritas:
-            nomes = [r[0] for r in conexao.execute(
-                f"SELECT DISTINCT clinica FROM lancamentos WHERE filial IN ({', '.join('?' * len(restritas))})",
-                restritas)]
-            cadastro = carregar_filiais(caminho_filiais())
-            nomes = nomes or [cadastro.get(c, {}).get("nome", f"Filial {c}") for c in restritas]
+        cadastro = carregar_filiais(caminho_filiais()) if restritas else {}
+        nomes = [cadastro.get(c, {}).get("nome") or "Área restrita" for c in restritas]
         expira = self._sessao_expira()
-        return {"filiais": list(restritas), "nomes": nomes, "senha_definida": senha_definida(caminho_senha()),
+        return {"configurada": bool(restritas), "filiais": list(restritas) if expira else [],
+                "nomes": sorted(set(nomes)), "senha_definida": senha_definida(caminho_senha()),
                 "desbloqueado": bool(expira),
                 "expira_em": datetime.fromtimestamp(expira, timezone.utc).isoformat(timespec="seconds") if expira else None}
 

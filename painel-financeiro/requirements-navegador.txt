@@ -1,0 +1,3 @@
+# Executor do TOTVS no navegador (python -m sorria agente executar).
+# Usa o Google Chrome já instalado: não é preciso rodar "playwright install".
+playwright==1.56.0

@@ -346,3 +346,5 @@ html.tv .gaveta .acoes-situacao, html.tv .so-normal { display: none; }
   .campo select, .campo input { width: 100%; }
   .tabela-area { overflow-x: auto; }
 }
+
+.acao-necessaria { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--atencao); border-radius: 8px; font-weight: 600; }
