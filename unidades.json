@@ -1,0 +1,344 @@
+[
+  {
+    "name": "Anápolis Centro",
+    "city": "Anápolis",
+    "street": "Praça Bom Jesus, 177",
+    "neighborhood": "Setor Central",
+    "cep": "75025-050",
+    "cnpj": "36.788.303/0001-68",
+    "address": "Praça Bom Jesus, 177, Setor Central, Anápolis - GO, CEP 75025-050",
+    "image": "anapolis_centro"
+  },
+  {
+    "name": "Anápolis Jaiara",
+    "city": "Anápolis",
+    "street": "Av. Fernando Costa, 539",
+    "neighborhood": "Vila Jayara",
+    "cep": "75064-780",
+    "cnpj": "40.379.934/0001-09",
+    "address": "Av. Fernando Costa, 539, Vila Jayara, Anápolis - GO, CEP 75064-780",
+    "image": "anapolis_jaiara"
+  },
+  {
+    "name": "Centro de Aparecida",
+    "city": "Aparecida de Goiânia",
+    "street": "Rua José Cândido Queiroz, s/n, Qd. 17 Lt. 01",
+    "neighborhood": "Setor Central",
+    "cep": "74980-070",
+    "cnpj": "43.837.739/0001-65",
+    "address": "Rua José Cândido Queiroz, s/n, Qd. 17 Lt. 01, Setor Central, Aparecida de Goiânia - GO, CEP 74980-070",
+    "image": "centro_aparecida"
+  },
+  {
+    "name": "Av. Castelo Branco",
+    "city": "Goiânia",
+    "street": "Av. Castelo Branco, s/n, Qd. 38 Lt. 32",
+    "neighborhood": "Setor Coimbra",
+    "cep": "74530-010",
+    "cnpj": "57.443.744/0001-06",
+    "address": "Av. Castelo Branco, s/n, Qd. 38 Lt. 32, Setor Coimbra, Goiânia - GO, CEP 74530-010",
+    "image": "castelo_branco"
+  },
+  {
+    "name": "Formosa",
+    "city": "Formosa",
+    "street": "Rua Visconde de Porto Seguro, 592",
+    "neighborhood": "Centro",
+    "cep": "73801-010",
+    "cnpj": "32.648.468/0001-83",
+    "address": "Rua Visconde de Porto Seguro, 592, Centro, Formosa - GO, CEP 73801-010",
+    "image": "formosa"
+  },
+  {
+    "name": "Garavelo",
+    "city": "Aparecida de Goiânia",
+    "street": "Av. da Igualdade",
+    "neighborhood": "Setor Garavelo",
+    "cep": "74930-530",
+    "cnpj": "33.889.099/0001-83",
+    "address": "Av. da Igualdade, Setor Garavelo, Aparecida de Goiânia - GO, CEP 74930-530",
+    "image": "garavelo"
+  },
+  {
+    "name": "Av. Araguaia",
+    "city": "Goiânia",
+    "street": "Av. Araguaia, 500",
+    "neighborhood": "Setor Central",
+    "cep": "74030-075",
+    "cnpj": "31.624.639/0001-71",
+    "address": "Av. Araguaia, 500, Setor Central, Goiânia - GO, CEP 74030-075",
+    "image": "av_araguaia"
+  },
+  {
+    "name": "Av. Anhanguera",
+    "city": "Goiânia",
+    "street": "Av. Anhanguera, 4772",
+    "neighborhood": "Setor Central",
+    "cep": "74040-010",
+    "cnpj": "33.872.684/0001-70",
+    "address": "Av. Anhanguera, 4772, Setor Central, Goiânia - GO, CEP 74040-010",
+    "image": "anhanguera_sem_carros_corte"
+  },
+  {
+    "name": "Setor Campinas",
+    "city": "Goiânia",
+    "street": "Av. 24 de Outubro, 1474",
+    "neighborhood": "Setor Campinas",
+    "cep": "74505-016",
+    "cnpj": "36.920.287/0001-15",
+    "address": "Av. 24 de Outubro, 1474, Setor Campinas, Goiânia - GO, CEP 74505-016",
+    "image": "setor_campinas"
+  },
+  {
+    "name": "Goianira",
+    "city": "Goianira",
+    "street": "Av. José Rodrigues Naves, s/n, Qd. 41 Lt. 07",
+    "neighborhood": "Vila Padre Pelágio",
+    "cep": "75360-129",
+    "cnpj": "46.024.091/0001-04",
+    "address": "Av. José Rodrigues Naves, s/n, Qd. 41 Lt. 07, Vila Padre Pelágio, Goianira - GO, CEP 75360-129",
+    "image": "goianira_nova"
+  },
+  {
+    "name": "Av. Independência",
+    "city": "Aparecida de Goiânia",
+    "street": "Av. Independência, s/n, Qd. 56 Lt. 007E",
+    "neighborhood": "Independência",
+    "cep": "74967-145",
+    "cnpj": "46.322.042/0001-40",
+    "address": "Av. Independência, s/n, Qd. 56 Lt. 007E, Independência, Aparecida de Goiânia - GO, CEP 74967-145",
+    "image": "independencia"
+  },
+  {
+    "name": "Inhumas",
+    "city": "Inhumas",
+    "street": "Praça Belarmino Essado, 08",
+    "neighborhood": "Centro",
+    "cep": "75400-525",
+    "cnpj": "38.318.773/0001-93",
+    "address": "Praça Belarmino Essado, 08, Centro, Inhumas - GO, CEP 75400-525",
+    "image": "inhumas"
+  },
+  {
+    "name": "Itumbiara",
+    "city": "Itumbiara",
+    "street": "Av. Santos Dumont, 1133A",
+    "neighborhood": "Santos Dumont",
+    "cep": "75530-275",
+    "cnpj": "46.654.937/0001-81",
+    "address": "Av. Santos Dumont, 1133A, Santos Dumont, Itumbiara - GO, CEP 75530-275",
+    "image": "itumbiara"
+  },
+  {
+    "name": "Jataí",
+    "city": "Jataí",
+    "street": "Av. Goiás, 1089",
+    "neighborhood": "Centro",
+    "cep": "75800-012",
+    "cnpj": "34.904.709/0001-33",
+    "address": "Av. Goiás, 1089, Centro, Jataí - GO, CEP 75800-012",
+    "image": "jatai"
+  },
+  {
+    "name": "Luziânia",
+    "city": "Luziânia",
+    "street": "Praça Evangelino Meireles, 29",
+    "neighborhood": "Centro",
+    "cep": "72800-680",
+    "cnpj": "40.503.496/0001-30",
+    "address": "Praça Evangelino Meireles, 29, Centro, Luziânia - GO, CEP 72800-680",
+    "image": "luziania"
+  },
+  {
+    "name": "Madre Germana",
+    "city": "Aparecida de Goiânia",
+    "street": "Pista lateral da Rodovia GO-040, s/n, Qd. 01 Lt. 04",
+    "neighborhood": "Vila Izaura",
+    "cep": "74965-749",
+    "cnpj": "44.648.518/0001-01",
+    "address": "Pista lateral da Rodovia GO-040, s/n, Qd. 01 Lt. 04, Vila Izaura, Aparecida de Goiânia - GO, CEP 74965-749",
+    "image": "madre_germana"
+  },
+  {
+    "name": "Av. Mangalô",
+    "city": "Goiânia",
+    "street": "Av. Mangalô, 280",
+    "neighborhood": "Setor Morada do Sol",
+    "cep": "74475-115",
+    "cnpj": "47.395.913/0001-18",
+    "address": "Av. Mangalô, 280, Setor Morada do Sol, Goiânia - GO, CEP 74475-115",
+    "image": "mangalo"
+  },
+  {
+    "name": "Setor Maysa",
+    "city": "Trindade",
+    "street": "Av. Elizabeth Marques, 134",
+    "neighborhood": "Setor Maysa",
+    "cep": "75380-307",
+    "cnpj": "40.777.043/0001-00",
+    "address": "Av. Elizabeth Marques, 134, Setor Maysa, Trindade - GO, CEP 75380-307",
+    "image": "maysa"
+  },
+  {
+    "name": "Morrinhos",
+    "city": "Morrinhos",
+    "street": "Rua 7 de Setembro, 487",
+    "neighborhood": "Centro",
+    "cep": "75650-000",
+    "cnpj": "48.960.359/0001-37",
+    "address": "Rua 7 de Setembro, 487, Centro, Morrinhos - GO, CEP 75650-000",
+    "image": "morrinhos"
+  },
+  {
+    "name": "Novo Gama",
+    "city": "Novo Gama",
+    "street": "Rua 43, s/n, Qd. 473 Lt. 14",
+    "neighborhood": "Parque Estrela Dalva VI",
+    "cep": "72860-343",
+    "cnpj": "35.240.249/0001-59",
+    "address": "Rua 43, s/n, Qd. 473 Lt. 14, Parque Estrela Dalva VI, Novo Gama - GO, CEP 72860-343",
+    "image": "novo_gama"
+  },
+  {
+    "name": "Parque Anhanguera",
+    "city": "Goiânia",
+    "street": "Rua Pasteur, 212",
+    "neighborhood": "Parque Anhanguera II",
+    "cep": "74340-570",
+    "cnpj": "56.045.279/0001-84",
+    "address": "Rua Pasteur, 212, Parque Anhanguera II, Goiânia - GO, CEP 74340-570",
+    "image": "parque_anhanguera"
+  },
+  {
+    "name": "Quirinópolis",
+    "city": "Quirinópolis",
+    "street": "Rua Brasil, 127",
+    "neighborhood": "Centro",
+    "cep": "75860-000",
+    "cnpj": "45.439.714/0001-39",
+    "address": "Rua Brasil, 127, Centro, Quirinópolis - GO, CEP 75860-000",
+    "image": "quirinopolis"
+  },
+  {
+    "name": "Rio Verde",
+    "city": "Rio Verde",
+    "street": "Av. Presidente Vargas, 767",
+    "neighborhood": "Setor Central",
+    "cep": "75901-040",
+    "cnpj": "36.775.581/0001-80",
+    "address": "Av. Presidente Vargas, 767, Setor Central, Rio Verde - GO, CEP 75901-040",
+    "image": "rio_verde"
+  },
+  {
+    "name": "Parque Santa Rita",
+    "city": "Goiânia",
+    "street": "Av. Americano do Brasil, 727",
+    "neighborhood": "Parque Santa Rita",
+    "cep": "74393-400",
+    "cnpj": "43.756.924/0001-25",
+    "address": "Av. Americano do Brasil, 727, Parque Santa Rita, Goiânia - GO, CEP 74393-400",
+    "image": "parque_santa_rita"
+  },
+  {
+    "name": "Santo Hilário",
+    "city": "Goiânia",
+    "street": "Av. JL7, s/n, Qd. QL10 Lt. 26",
+    "neighborhood": "Jardim Lageado",
+    "cep": "74785-050",
+    "cnpj": "63.241.166/0001-10",
+    "address": "Av. JL7, s/n, Qd. QL10 Lt. 26, Jardim Lageado, Goiânia - GO, CEP 74785-050",
+    "image": "santo_hilario"
+  },
+  {
+    "name": "Sen. Canedo",
+    "city": "Senador Canedo",
+    "street": "Av. Dom Emanuel, s/n, Qd. 02 Lt. 01",
+    "neighborhood": "Jardim Sabiá",
+    "cep": "75250-047",
+    "cnpj": "36.286.521/0001-02",
+    "address": "Av. Dom Emanuel, s/n, Qd. 02 Lt. 01, Jardim Sabiá, Senador Canedo - GO, CEP 75250-047",
+    "image": "canedo"
+  },
+  {
+    "name": "Trindade",
+    "city": "Trindade",
+    "street": "Av. Raimundo de Aquino, 32",
+    "neighborhood": "Vila João Braz",
+    "cep": "75388-412",
+    "cnpj": "41.550.707/0001-59",
+    "address": "Av. Raimundo de Aquino, 32, Vila João Braz, Trindade - GO, CEP 75388-412",
+    "image": "trindade_centro"
+  },
+  {
+    "name": "Vila Brasília",
+    "city": "Aparecida de Goiânia",
+    "street": "Av. Rudá, s/n, Qd. 41A Lt. 06",
+    "neighborhood": "Vila Brasília",
+    "cep": "74905-760",
+    "cnpj": "33.849.934/0001-51",
+    "address": "Av. Rudá, s/n, Qd. 41A Lt. 06, Vila Brasília, Aparecida de Goiânia - GO, CEP 74905-760",
+    "image": "vila_brasilia"
+  },
+  {
+    "name": "Vila Concórdia",
+    "city": "Goiânia",
+    "street": "Rua Poeta Joaquim Bonifácio, s/n, Qd. 23A Lt. 16",
+    "neighborhood": "Vila Concórdia",
+    "cep": "74770-325",
+    "cnpj": "48.589.003/0001-39",
+    "address": "Rua Poeta Joaquim Bonifácio, s/n, Qd. 23A Lt. 16, Vila Concórdia, Goiânia - GO, CEP 74770-325",
+    "image": "vila_concordia"
+  },
+  {
+    "name": "Vila Mutirão",
+    "city": "Goiânia",
+    "street": "Av. do Povo, 1095",
+    "neighborhood": "Vila Mutirão",
+    "cep": "74475-425",
+    "cnpj": "34.485.637/0001-37",
+    "address": "Av. do Povo, 1095, Vila Mutirão, Goiânia - GO, CEP 74475-425",
+    "image": "vila_multirao"
+  },
+  {
+    "name": "Vila Nova",
+    "city": "Goiânia",
+    "street": "Praça Vereador Boaventura M. de Andrade, s/n",
+    "neighborhood": "Setor Leste Vila Nova",
+    "cep": "74640-010",
+    "cnpj": "60.049.920/0001-26",
+    "address": "Praça Vereador Boaventura M. de Andrade, s/n, Setor Leste Vila Nova, Goiânia - GO, CEP 74640-010",
+    "image": "vila_nova"
+  },
+  {
+    "name": "Nerópolis",
+    "city": "Nerópolis",
+    "street": "Rua Josefina Ludovico de Almeida, s/n, Quadra 13, Lote 8",
+    "neighborhood": "Centro",
+    "cep": "75460-026",
+    "cnpj": "66.359.794/0001-92",
+    "address": "Rua Josefina Ludovico de Almeida, s/n, Quadra 13, Lote 8, Centro, Nerópolis - GO, CEP 75460-026",
+    "image": null,
+    "under_construction": true
+  },
+  {
+    "name": "Palmeiras de Goiás",
+    "city": "Palmeiras de Goiás",
+    "street": "Avenida Humberto Mendonça, s/n, Quadra 15, Lote 4",
+    "neighborhood": "Setor São José",
+    "cep": "76190-116",
+    "cnpj": "68.428.685/0001-05",
+    "address": "Avenida Humberto Mendonça, s/n, Quadra 15, Lote 4, Setor São José, Palmeiras de Goiás - GO, CEP 76190-116",
+    "image": null,
+    "under_construction": true
+  },
+  {
+    "name": "Praça A",
+    "city": "Goiânia",
+    "street": "Av. Anhanguera, 8550",
+    "neighborhood": "Setor Campinas",
+    "cep": "74503-100",
+    "cnpj": "66.738.414/0001-20",
+    "address": "Av. Anhanguera, 8550, Setor Campinas, Goiânia - GO, CEP 74503-100",
+    "image": "praca_nova"
+  }
+]

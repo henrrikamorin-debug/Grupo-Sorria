@@ -1,0 +1,29 @@
+SORRIA GOIÁS — PROTÓTIPO V7
+Abra index.html no navegador.
+Vila Multirão: nova foto.
+Av. Anhanguera: recorte da foto para não exibir carros da parte inferior, sem manipulação artificial.
+Rio Verde: imagem vertical exibida por inteiro, sem corte, com fundo escuro nas laterais.
+
+VERSÃO 8: incluídas 13 fotos de fachadas conforme ordem informada pelo usuário.
+
+V9: fotos novas de Garavelo, Jataí, Vila Concórdia, Setor Campinas e Parque Santa Rita. Nome Campinas alterado para Setor Campinas. Foto de Trindade Centro pendente de envio.
+
+V11: adicionada foto noturna da fachada da unidade Av. Mangalô (Mangalô), mantendo as demais alterações da V10.
+
+
+VERSÃO 13 — TESTE DOS CARDS
+Abra ESTE index.html extraído da pasta site_sorria_goias (não uma cópia antiga).
+Clique em Encontre sua clínica: rola até as unidades.
+Clique em Agende pelo WhatsApp: abre a central em nova aba.
+Clique em Conheça nossos espaços: rola até Nossa estrutura.
+Se a versão antiga ainda aparecer, feche a aba e abra o index.html da pasta extraída desta versão.
+
+VERSÃO 16: carrossel automático com três fotos na capa, troca a cada 4 segundos, setas e indicadores.
+
+
+VERSÃO 17: chatbot de FAQ local (não IA), carreira e SAC por WhatsApp central (sem protocolo ou envio de currículo), geolocalização sob permissão abrindo pesquisa no Google Maps, documentos preliminares LGPD/cookies e 6 links para casos no Instagram (capas provisórias). Antes da publicação: validar política jurídica, canais oficiais de RH/SAC, geocodificação para ranking real da unidade mais próxima, imagens e consentimentos dos casos, e testar no HTTPS.
+
+VERSÃO 18: paleta dourada aproximada #C5A35A; seção de unidades movida para a última seção antes do CTA; seção de histórias renomeada; botão de localização destacado; formulários oficiais aguardando URLs. A busca por proximidade ainda abre o Google Maps, não calcula distâncias entre as 34 unidades.
+
+
+VERSÃO 19: somente fotos de fachada (removidas as fotos internas de consultório e recepção da capa, de Nossa estrutura e de Nossa história); domínio clinicassorriagoias.com.br configurado (canonical, Open Graph, robots.txt e sitemap.xml); textos corrigidos ("site da Sorria Goiás" padronizado nas mensagens de WhatsApp, "uma história", "Centro de Aparecida", "Palmeiras de Goiás", "Vila Mutirão"); rodapés sem a menção a protótipo.
