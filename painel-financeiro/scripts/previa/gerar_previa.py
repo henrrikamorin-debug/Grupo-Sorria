@@ -47,7 +47,7 @@ web = raiz / "web"
 def sem_modulos(js):
     js = re.sub(r'^import[\s\S]*?from\s+"[^"]+";\n', "", js, flags=re.M)
     return re.sub(r"^export ", "", js, flags=re.M)
-js = "\n".join(sem_modulos((web / "js" / f).read_text()) for f in ("formato.js", "graficos.js", "app.js"))
+js = "\n".join(sem_modulos((web / "js" / f).read_text()) for f in ("formato.js", "graficos.js", "animacoes.js", "app.js"))
 js = js.replace('history.replaceState(null, "", url);', 'try { history.replaceState(null, "", url); } catch {}')
 js = js.replace('location.href = `/api/ocorrencias.csv?${parametros(estado.tv ? { tv: "1" } : {})}`;',
                 'baixarCsvPrevia();')

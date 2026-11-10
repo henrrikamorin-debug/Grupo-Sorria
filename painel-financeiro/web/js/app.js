@@ -2,6 +2,9 @@
 // A interface apenas lê o último retrato válido do serviço local.
 // Recarregar o painel NÃO coleta dados do TOTVS.
 
+import {
+  agendarDinheiro, agendarLinha, contar, dinheiroVoando, entrar, iniciarBrilho, pararDinheiro,
+} from "./animacoes.js";
 import { barras, colunas, esconderDica } from "./graficos.js";
 import {
   dataCurta, esc, gravarPreferencia, haQuanto, horaLocal, isoLocal, lerPreferencia,
@@ -33,7 +36,22 @@ const estado = {
   falhaDesde: null,
   requisicao: 0,
   rotacao: null,
+  // Assinaturas do que já foi desenhado: só anima de novo quando o conteúdo muda.
+  assinaturaGraficos: "",
+  assinaturaTabela: "",
+  ultimaColeta: null,
 };
+
+const INDICADORES = ["k-registros", "k-ocorrencias", "k-valor", "k-pendencias"];
+/** Texto fixo num indicador (carregando, sem dados): interrompe a contagem e zera a referência. */
+function textoIndicadores(texto) {
+  INDICADORES.forEach((id) => {
+    const el = $(id);
+    cancelAnimationFrame(Number(el.dataset.quadro || 0));
+    delete el.dataset.valor;
+    el.textContent = texto;
+  });
+}
 
 // ------------------------------------------------------------------ período
 function intervaloDoPeriodo() {
@@ -104,7 +122,7 @@ async function carregar({ silencioso = false } = {}) {
 }
 
 function mostrarCarregando() {
-  ["k-registros", "k-ocorrencias", "k-valor", "k-pendencias"].forEach((id) => ($(id).textContent = "…"));
+  textoIndicadores("…");
   const html = `<div class="estado carregando"><strong>Carregando</strong>lendo o último retrato local</div>`;
   ["g-clinica", "g-categoria", "g-periodo"].forEach((id) => ($(id).innerHTML = html));
   $("tabela-corpo").innerHTML = "";
@@ -128,7 +146,7 @@ function mostrarFalha(erro) {
       Inicie o serviço (scripts/iniciar) e aguarde — o painel tenta novamente sozinho.</div>`;
     ["g-clinica", "g-categoria", "g-periodo"].forEach((id) => ($(id).innerHTML = html));
     $("tabela-estado").innerHTML = html;
-    ["k-registros", "k-ocorrencias", "k-valor", "k-pendencias"].forEach((id) => ($(id).textContent = "—"));
+    textoIndicadores("—");
   }
 }
 
@@ -150,20 +168,29 @@ function renderizar() {
   if (semColeta) return renderizarSemColeta(d.situacao);
 
   const k = d.indicadores;
-  $("k-registros").textContent = numero(k.registros_analisados);
-  $("k-ocorrencias").textContent = numero(k.ocorrencias);
+  contar($("k-registros"), k.registros_analisados, numero);
+  contar($("k-ocorrencias"), k.ocorrencias, numero);
   $("k-ocorrencias-d").textContent = `em ${numero(k.lancamentos_afetados)} lançamento(s)`;
-  const [inteiroValor, centavos] = reaisPartes(k.valor_associado_centavos);
-  $("k-valor").innerHTML = `${esc(inteiroValor)}<span class="centavos">${esc(centavos)}</span>`;
+  contar($("k-valor"), k.valor_associado_centavos, (v) => {
+    const [inteiroValor, centavos] = reaisPartes(v);
+    return `${esc(inteiroValor)}<span class="centavos">${esc(centavos)}</span>`;
+  }, { duracao: 1800 });
   $("k-valor-d").textContent = k.lancamentos_sem_valor
     ? `cada lançamento somado uma vez · ${numero(k.lancamentos_sem_valor)} sem valor`
     : "cada lançamento somado uma vez";
-  $("k-pendencias").textContent = numero(k.pendencias);
+  contar($("k-pendencias"), k.pendencias, numero);
   $("k-pendencias-d").textContent =
     `${numero(k.por_situacao.pendente)} pendente(s) · ${numero(k.por_situacao.em_analise)} em análise`;
 
   renderizarGraficos();
   renderizarTabela();
+
+  // Dinheiro voando: na primeira exibição e quando chega uma coleta nova.
+  const coleta = d.situacao.ultima_coleta_sucesso.finalizada_em;
+  if (coleta !== estado.ultimaColeta) {
+    if (estado.ultimaColeta !== null || estado.tv) setTimeout(() => dinheiroVoando(), 900);
+    estado.ultimaColeta = coleta;
+  }
 
   const s = d.situacao;
   $("rodape-coleta").textContent = s.se2
@@ -176,7 +203,7 @@ function renderizar() {
 }
 
 function renderizarSemColeta(s) {
-  ["k-registros", "k-ocorrencias", "k-valor", "k-pendencias"].forEach((id) => ($(id).textContent = "—"));
+  textoIndicadores("—");
   const motivo = s.ultima_tentativa_falhou ? `Última tentativa falhou: ${s.ultima_tentativa.mensagem}` :
     s.coleta_em_andamento ? "Primeira coleta em andamento…" : "Aguardando a primeira coleta do serviço.";
   const html = `<div class="estado${s.ultima_tentativa_falhou ? " falha" : ""}">
@@ -283,6 +310,12 @@ function renderizarGraficos() {
       aplicarFiltros();
     },
   });
+  // Barras e colunas crescem quando o conteúdo muda (não a cada releitura igual nem ao redimensionar).
+  const assinatura = JSON.stringify([g, metrica, estado.agrupar, porTicket ? 1 : 0, estado.filtros]);
+  if (assinatura !== estado.assinaturaGraficos) {
+    estado.assinaturaGraficos = assinatura;
+    ["g-clinica", "g-categoria", "g-periodo"].forEach((id) => entrar($(id)));
+  }
 }
 
 function calcularLinhasTv() {
@@ -318,10 +351,10 @@ function desenharTabela(linhasPorPagina) {
   $("contagem-tabela").textContent = total ? `${numero(total)} no filtro` : "";
   $("tabela-estado").innerHTML = total ? "" :
     `<div class="estado"><strong>Nenhuma ocorrência</strong>para os filtros selecionados</div>`;
-  $("tabela-corpo").innerHTML = pagina.map((o) => {
+  $("tabela-corpo").innerHTML = pagina.map((o, i) => {
     const repetido = porReferencia[o.referencia] > 1
       ? `<span class="repetido">${porReferencia[o.referencia]} ocorrências neste lançamento</span>` : "";
-    return `<tr class="linha" tabindex="0" data-id="${esc(o.id)}">
+    return `<tr class="linha" tabindex="0" data-id="${esc(o.id)}" style="--i:${i}">
       <td class="data num">${dataCurta(o.data)}</td>
       <td>${esc(o.clinica)}${o.responsavel ? `<span class="repetido">${esc(o.responsavel)}</span>` : ""}</td>
       <td class="ref num">${esc(o.titulo || o.referencia)}</td>
@@ -331,6 +364,12 @@ function desenharTabela(linhasPorPagina) {
       <td><span class="situacao ${esc(o.situacao)}">${esc(o.situacao_rotulo)}</span></td>
     </tr>`;
   }).join("");
+  // Linhas entram em sequência quando a página ou os dados mudam (ex.: rotação da TV).
+  const assinatura = pagina.map((o) => o.id + o.situacao).join("|");
+  if (assinatura !== estado.assinaturaTabela) {
+    estado.assinaturaTabela = assinatura;
+    entrar($("tabela-corpo"));
+  }
   $("tabela-corpo").querySelectorAll("tr.linha").forEach((tr) => {
     const abrir = () => abrirOcorrencia(tr.dataset.id);
     tr.addEventListener("click", abrir);
@@ -650,6 +689,7 @@ function definirTv(ativo) {
   estado.rotacao = null;
   fecharGaveta();
   estado.pagina = 0;
+  if (ativo) agendarDinheiro(); else pararDinheiro();
   // Os dados sensíveis são removidos no servidor; por isso a releitura.
   carregar();
 }
@@ -753,6 +793,9 @@ function iniciar() {
   $("btn-tv").textContent = estado.tv ? "Sair do modo TV" : "Modo TV";
   ligarEventos();
   iniciarRelogio();
+  iniciarBrilho();
+  agendarLinha();
+  if (estado.tv) agendarDinheiro();
   carregar();
   setInterval(() => carregar({ silencioso: true }), RELEITURA_MS);
   setInterval(() => {

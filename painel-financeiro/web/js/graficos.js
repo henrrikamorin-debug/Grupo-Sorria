@@ -1,7 +1,7 @@
 // Gráficos simples em HTML/SVG, sem bibliotecas externas (funciona offline).
 // Uma única série por gráfico (dourado); valores sempre em texto neutro.
 
-import { esc, numero, reais, reaisCompacto } from "./formato.js";
+import { esc, isoLocal, numero, reais, reaisCompacto } from "./formato.js";
 
 const dica = () => document.getElementById("dica");
 
@@ -55,7 +55,7 @@ export function barras(container, itens, { metrica, maximo = 8, selecionado, aoC
   const topo = Math.max(1, ...lista.map((i) => valorDe(i, metrica)));
   container.innerHTML = lista
     .map((item, indice) => `
-      <div class="barra-linha${item.rotulo === selecionado ? " selecionada" : ""}" data-indice="${indice}"
+      <div class="barra-linha${item.rotulo === selecionado ? " selecionada" : ""}" data-indice="${indice}" style="--i:${indice}"
            tabindex="0" role="button" aria-label="${esc(item.rotulo)}: ${esc(textoDe(item, metrica))}">
         <span class="nome">${esc(item.rotulo)}</span>
         <span class="trilho"><span class="preenchimento" data-largura="${(valorDe(item, metrica) / topo) * 100}"></span></span>
@@ -112,11 +112,12 @@ export function colunas(container, serie, { metrica, aoClicar }) {
     const caminho = alturaColuna <= 0 ? "" : alturaColuna < r
       ? `<rect class="coluna" x="${x}" y="${y}" width="${larguraColuna}" height="${alturaColuna}"/>`
       : `<path class="coluna" d="M${x},${y + alturaColuna} V${y + r} Q${x},${y} ${x + r},${y} H${x + larguraColuna - r} Q${x + larguraColuna},${y} ${x + larguraColuna},${y + r} V${y + alturaColuna} Z"/>`;
-    partes.push(`<g data-indice="${i}"><rect class="coluna-alvo" x="${margem.esq + i * passo}" y="${margem.topo}" width="${passo}" height="${h}"/>${caminho}</g>`);
+    partes.push(`<g data-indice="${i}" style="--i:${Math.min(i, 40)}"><rect class="coluna-alvo" x="${margem.esq + i * passo}" y="${margem.topo}" width="${passo}" height="${h}"/>${caminho}</g>`);
     if (i % cadaN === 0) {
       partes.push(`<text class="eixo-texto" x="${x + larguraColuna / 2}" y="${altura - 6}" text-anchor="middle" font-size="${fonte}">${esc(item.rotulo)}</text>`);
     }
   });
+  partes.push(...linhaAcumulada(serie, { metrica, margem, h, passo, lacuna, larguraColuna, largura, fonte, rotuloEixo }));
   container.innerHTML = `<svg class="colunas" viewBox="0 0 ${largura} ${altura}" width="${largura}" height="${altura}" role="img"
       aria-label="Ocorrências por período">${partes.join("")}</svg>`;
   container.querySelectorAll("g[data-indice]").forEach((g) => {
@@ -126,4 +127,40 @@ export function colunas(container, serie, { metrica, aoClicar }) {
     g.addEventListener("mouseleave", esconderDica);
     g.addEventListener("click", () => aoClicar && aoClicar(item));
   });
+}
+
+/**
+ * Linha do acumulado no período, de dia em dia até hoje (dias futuros não entram).
+ * Escala própria: o ponto final é o total acumulado, indicado no rótulo.
+ */
+function linhaAcumulada(serie, { metrica, margem, h, passo, lacuna, larguraColuna, largura, fonte, rotuloEixo }) {
+  const hoje = isoLocal(new Date());
+  let soma = 0;
+  const pontos = [];
+  serie.forEach((item, i) => {
+    if (item.inicio > hoje) return;
+    soma += valorDe(item, metrica);
+    pontos.push([margem.esq + i * passo + lacuna / 2 + larguraColuna / 2, soma]);
+  });
+  if (pontos.length < 2 || soma <= 0) return [];
+  const base = margem.topo + h;
+  const y = (v) => base - (v / soma) * h * 0.9;
+  const coords = pontos.map(([x, v]) => [x.toFixed(1), y(v).toFixed(1)]);
+  const linha = "M" + coords.map((c) => c.join(",")).join(" L");
+  const [xf, yf] = coords[coords.length - 1].map(Number);
+  const area = `${linha} L${xf},${base} L${coords[0][0]},${base} Z`;
+  const texto = `acumulado: ${metrica === "valor" ? reaisCompacto(soma) : numero(soma)}`;
+  const ancora = xf > largura - fonte * 9 ? "end" : "start";
+  const dx = ancora === "end" ? -fonte * 0.7 : fonte * 0.7;
+  return [
+    `<defs><linearGradient id="grad-acumulado" x1="0" y1="0" x2="0" y2="1">
+       <stop offset="0" stop-color="#f1d58e" stop-opacity="0.22"/><stop offset="1" stop-color="#f1d58e" stop-opacity="0"/>
+     </linearGradient></defs>`,
+    `<path class="acumulado-area" d="${area}" fill="url(#grad-acumulado)"/>`,
+    `<path class="acumulado-linha" d="${linha}" pathLength="1"/>`,
+    `<circle class="acumulado-halo" cx="${xf}" cy="${yf}" r="${Math.max(5, fonte * 0.6)}"/>`,
+    `<circle class="acumulado-ponto" cx="${xf}" cy="${yf}" r="${Math.max(3, fonte * 0.3)}"/>`,
+    `<text class="acumulado-rotulo" x="${xf + dx}" y="${Math.max(fonte, yf - fonte * 0.5)}" text-anchor="${ancora}"
+       font-size="${fonte}">${esc(texto)}</text>`,
+  ];
 }

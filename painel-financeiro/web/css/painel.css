@@ -348,3 +348,94 @@ html.tv .gaveta .acoes-situacao, html.tv .so-normal { display: none; }
 }
 
 .acao-necessaria { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--atencao); border-radius: 8px; font-weight: 600; }
+
+/* ------------------------------------------------------------ animações (web/js/animacoes.js)
+   Só transform e opacity. Desligadas com ?animacoes=0 ou prefers-reduced-motion. */
+@keyframes crescer-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes crescer-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes entrar-linha { from { opacity: 0; transform: translateY(0.6rem); } to { opacity: 1; transform: none; } }
+@keyframes surgir { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulso-dourado {
+  0% { box-shadow: 0 0 0 0 rgba(212, 181, 108, 0.55); border-color: var(--dourado); }
+  100% { box-shadow: 0 0 0 0.9rem rgba(212, 181, 108, 0); border-color: var(--borda); }
+}
+@keyframes ponto-vivo {
+  0% { box-shadow: 0 0 0 0 currentColor; }
+  70%, 100% { box-shadow: 0 0 0 0.45rem transparent; }
+}
+@keyframes atravessar { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(320%) skewX(-18deg); } }
+@keyframes subir-dinheiro {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0) scale(var(--escala)); }
+  12% { opacity: 0.5; }
+  80% { opacity: 0.38; }
+  100% { opacity: 0; transform: translate(var(--deriva), -118vh) rotate(var(--giro)) scale(var(--escala)); }
+}
+
+/* Barras crescem da esquerda, uma após a outra. */
+.barra-linha .preenchimento { transform-origin: left center; }
+.animar-entrada .barra-linha .preenchimento {
+  animation: crescer-x 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.animar-entrada .barra-linha .quanto { animation: surgir 0.6s ease-out both; animation-delay: calc(0.4s + var(--i, 0) * 70ms); }
+/* Colunas sobem a partir do eixo. */
+.animar-entrada .colunas .coluna {
+  transform-box: fill-box; transform-origin: center bottom;
+  animation: crescer-y 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+/* Linha do acumulado: desenha-se subindo dia a dia, com ponto "vivo" no dia de hoje. */
+@keyframes desenhar-linha { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes halo-vivo { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(2.2); opacity: 0; } }
+.colunas .acumulado-linha {
+  fill: none; stroke: #f1d58e; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round;
+  stroke-dasharray: 1; stroke-dashoffset: 0; pointer-events: none;
+}
+.colunas .acumulado-area, .colunas .acumulado-ponto, .colunas .acumulado-halo, .colunas .acumulado-rotulo { pointer-events: none; }
+.colunas .acumulado-ponto { fill: #f1d58e; }
+.colunas .acumulado-halo { fill: #f1d58e; opacity: 0; transform-box: fill-box; transform-origin: center;
+  animation: halo-vivo 2.2s ease-out infinite; }
+.colunas .acumulado-rotulo { fill: #f1d58e; font-weight: 600; paint-order: stroke; stroke: var(--superficie); stroke-width: 4px; }
+.animar-entrada .colunas .acumulado-linha, .colunas.redesenhar .acumulado-linha {
+  animation: desenhar-linha 2.2s cubic-bezier(0.3, 0.1, 0.3, 1) both; animation-delay: 0.3s;
+}
+.animar-entrada .colunas .acumulado-area, .colunas.redesenhar .acumulado-area { animation: surgir 1.2s ease-out both; animation-delay: 1.6s; }
+.animar-entrada .colunas .acumulado-ponto, .animar-entrada .colunas .acumulado-rotulo,
+.colunas.redesenhar .acumulado-ponto, .colunas.redesenhar .acumulado-rotulo { animation: surgir 0.5s ease-out both; animation-delay: 2.3s; }
+
+/* Linhas da tabela entram em sequência (rotação da TV). */
+tbody.animar-entrada tr { animation: entrar-linha 0.45s ease-out both; animation-delay: calc(var(--i, 0) * 40ms); }
+
+/* Indicador cujo valor mudou: pulso dourado. */
+.indicador.mudou { animation: pulso-dourado 1.6s ease-out; }
+/* Faixa de luz que atravessa indicadores e barras de tempos em tempos. */
+.indicador, .barras { position: relative; overflow: hidden; }
+.barras { padding: 3px; margin: -3px; } /* não corta o contorno de foco */
+.indicador.brilho::after, .barras.brilho::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 35%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(212, 181, 108, 0.10), transparent);
+  animation: atravessar 1.4s ease-in-out both;
+}
+/* Ponto da integração "vivo" quando tudo está em dia. */
+.integracao[data-nivel="ok"] .ponto { color: rgba(124, 196, 154, 0.55); animation: ponto-vivo 2.4s ease-out infinite; }
+.integracao[data-nivel="demonstracao"] .ponto { color: rgba(212, 181, 108, 0.5); animation: ponto-vivo 2.4s ease-out infinite; }
+
+/* Dinheiro voando (alguns segundos, sem bloquear cliques; abaixo da faixa de demonstração e da gaveta). */
+.dinheiro-voando { position: fixed; inset: 0; z-index: 45; pointer-events: none; overflow: hidden; }
+.dinheiro-voando .peca {
+  position: absolute; bottom: -4rem; display: block;
+  animation-name: subir-dinheiro; animation-timing-function: cubic-bezier(0.35, 0.1, 0.45, 1); animation-fill-mode: both;
+  filter: drop-shadow(0 0.3rem 0.6rem rgba(0, 0, 0, 0.5));
+}
+.dinheiro-voando .nota { width: 4.6rem; }
+.dinheiro-voando .moeda { width: 2.2rem; }
+.dinheiro-voando svg { display: block; width: 100%; height: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animar-entrada .barra-linha .preenchimento, .animar-entrada .barra-linha .quanto, .animar-entrada .colunas .coluna,
+  tbody.animar-entrada tr, .indicador.mudou, .indicador.brilho::after, .barras.brilho::after,
+  .integracao .ponto, .colunas .acumulado-linha, .colunas .acumulado-area, .colunas .acumulado-ponto,
+  .colunas .acumulado-rotulo { animation: none !important; }
+  .colunas .acumulado-halo { display: none; }
+  .dinheiro-voando { display: none; }
+}

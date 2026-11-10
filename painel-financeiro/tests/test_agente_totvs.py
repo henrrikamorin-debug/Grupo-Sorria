@@ -298,16 +298,18 @@ class TestPainelAgente(BaseAgente):
                          f"/api/painel?inicio={inicio}&clinica=ESCRIT%C3%93RIO", "/api/agente/contexto"):
                 _, _, corpo = req(rota)
                 for proibido in ('"filial": "031801"', ";031801;", "COLABORADOR", "5.000,00", "500000",
-                                 "625050", '"titulos": 3', '"registros": 3'):
+                                 "625050", '"titulos": 3', '"registros": 3', '"registros_analisados": 3'):
                     self.assertNotIn(proibido, corpo, f"{rota}: {proibido}")
             status, _, _ = req("/api/acesso/desbloquear", {"usuario": "outra.pessoa", "senha": "senha-de-teste-1"})
             self.assertEqual(status, 401)
             status, cab, _ = req("/api/acesso/desbloquear", {"usuario": "dono", "senha": "senha-de-teste-1"})
             cookie = cab["Set-Cookie"].split(";")[0]
+            # Pela contagem de títulos (não pelas ocorrências, que dependem do dia do mês).
             _, _, corpo = req(f"/api/painel?inicio={inicio}", cookie=cookie)
-            self.assertIn('"filial": "031801"', corpo)
+            self.assertIn('"registros_analisados": 3', corpo)
             _, _, corpo = req(f"/api/painel?inicio={inicio}&tv=1", cookie=cookie)
-            self.assertNotIn('"filial": "031801"', corpo)  # TV nunca mostra
+            self.assertIn('"registros_analisados": 2', corpo)  # TV nunca mostra
+            self.assertNotIn('"filial": "031801"', corpo)
             mes = HOJE.strftime("%Y-%m")
             req("/api/relatorios", {"mes": mes}, cookie=cookie)
             _, _, pagina = req(f"/relatorios/relatorio-{mes}.html")
