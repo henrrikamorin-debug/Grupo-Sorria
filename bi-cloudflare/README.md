@@ -8,4 +8,4 @@ cálculo de `web/js/motor/`, que o Worker importa.
 Nada aqui é publicado automaticamente. Para publicar, a mudança tem de ser levada ao projeto do escritório e
 implantada por lá (`wrangler deploy`), depois de revisada.
 
-Testes: `node --test tests/`
+Testes: `npm test` (Node 22, sem dependências).

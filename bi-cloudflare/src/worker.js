@@ -97,7 +97,10 @@ async function sincronizar(request, env) {
   await env.DADOS.put(CHAVE_SNAPSHOT, corpo.texto);
   await env.DADOS.put(CHAVE_RETRATO_GZ, corpo.gzip ? corpo.bruto : await compactar(corpo.texto));
   await env.DADOS.put(CHAVE_META, JSON.stringify({ gerado_em: snapshot.gerado_em, ocorrencias: snapshot.ocorrencias.length,
-    lancamentos: snapshot.lancamentos.length }));
+    lancamentos: snapshot.lancamentos.length,
+    // Para /api/saude: "gerado_em" muda a cada publicação, mesmo quando a coleta do TOTVS falhou; o que importa é a última coleta válida.
+    ultima_coleta_sucesso: snapshot.situacao?.ultima_coleta_sucesso?.finalizada_em ?? null,
+    desatualizado: snapshot.situacao?.desatualizado ?? null }));
   return resposta({ ok: true, gerado_em: snapshot.gerado_em, ocorrencias: snapshot.ocorrencias.length,
     lancamentos: snapshot.lancamentos.length });
 }
@@ -162,10 +165,27 @@ async function servirRetrato(caminho, env) {
   return texto ? resposta(texto) : erro(503, "Aguardando a primeira sincronização com o computador do escritório.");
 }
 
+// Mesmo limite do painel local (agente.tolerancia_desatualizacao_horas).
+const LIMITE_DESATUALIZACAO_MIN = 26 * 60;
+
+/** Saúde real para monitoramento: dados sincronizados e coleta do TOTVS recente. Responde 200 sempre; "ok" diz se está em dia. */
+export async function saude(env, agoraMs = Date.now()) {
+  const base = { online: true, modo: "real", calculo_no_navegador: true };
+  const meta = JSON.parse((await env.DADOS.get(CHAVE_META, "text")) || "null");
+  if (!meta?.gerado_em) return resposta({ ...base, ok: false, motivo: "Aguardando a primeira sincronização." });
+  const coleta = meta.ultima_coleta_sucesso ?? null;
+  const minutos = coleta ? Math.round((agoraMs - Date.parse(coleta)) / 60000) : null;
+  const motivo = !coleta ? "Última coleta válida desconhecida (aguarde a próxima sincronização)."
+    : minutos > LIMITE_DESATUALIZACAO_MIN ? `Sem coleta válida do TOTVS há ${Math.floor(minutos / 60)} h.`
+    : meta.desatualizado === true ? "O painel local marcou os dados como desatualizados." : null;
+  return resposta({ ...base, ok: !motivo, ...(motivo ? { motivo } : {}), gerado_em: meta.gerado_em,
+    ultima_coleta_sucesso: coleta, minutos_desde_coleta: minutos });
+}
+
 async function api(caminho, url, env) {
   if (caminho === "/api/retrato" || caminho === "/api/retrato/meta") return servirRetrato(caminho, env);
   if (caminho.startsWith("/api/bi/")) return apiBi(caminho, url, env);
-  if (caminho === "/api/saude") return resposta({ ok: true, modo: "real", online: true, calculo_no_navegador: true });
+  if (caminho === "/api/saude") return saude(env);
   if (caminho === "/api/acesso") {
     return resposta({ configurada: false, filiais: [], nomes: [], senha_definida: false, desbloqueado: false, expira_em: null });
   }
@@ -227,7 +247,9 @@ export default {
       }
       if (caminho.startsWith("/api/")) return await api(caminho, url, env);
       return erro(404, "não encontrado");
-    } catch {
+    } catch (e) {
+      // Registra no Workers Logs (só método, caminho e pilha, sem dados); antes o erro sumia e o painel não acusava nada.
+      console.error("erro interno", request.method, caminho, e?.stack || String(e));
       return erro(500, "erro interno");
     }
   },
